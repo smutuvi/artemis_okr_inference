@@ -52,6 +52,14 @@ python run.py --list-tasks
 python run.py --tasks flowers,pods --sample 20
 ```
 
+### Only Astra, or only custom
+
+```bash
+python run.py --tasks flowers,pods --models astra --sample 20
+python run.py --tasks pods --models custom --sample 20 --visualize
+# aliases also work: --models autolabel  |  --models roboflow
+```
+
 ### One task, all images
 
 ```bash
@@ -81,6 +89,7 @@ python -m okr_inference --tasks flowers --sample 5 --visualize
 | Flag | Default | Meaning |
 |------|---------|---------|
 | `--tasks` | `flowers,pods` | Comma list or `all` |
+| `--models` | `all` | `astra`, `custom`, `astra,custom`, or `all` |
 | `--sample N` | `20` | Seeded sample size per task |
 | `--all` | off | Use every image (overrides `--sample`) |
 | `--visualize` | off | Save playground panels under `outputs/.../visualizations/` |

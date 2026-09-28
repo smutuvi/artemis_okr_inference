@@ -333,6 +333,10 @@ def run_evaluation(cfg: RunConfig) -> Path:
     print("Output dir:", run_dir)
     print("Tasks:", [t.name for t in cfg.tasks])
     print(
+        "Models:",
+        {t.name: [m.key for m in t.models] for t in cfg.tasks},
+    )
+    print(
         "Sample:",
         "ALL" if cfg.sample_size is None else cfg.sample_size,
         "| visualize:",

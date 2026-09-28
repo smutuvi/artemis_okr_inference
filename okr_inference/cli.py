@@ -32,6 +32,15 @@ def build_parser() -> argparse.ArgumentParser:
             "Example: flowers  |  flowers,pods  |  all"
         ),
     )
+    p.add_argument(
+        "--models",
+        default="all",
+        help=(
+            "Which model(s) to run per task: astra, custom, or both (all). "
+            "Aliases: autolabel→astra, roboflow→custom. "
+            "Example: --models astra  |  --models custom  |  --models astra,custom"
+        ),
+    )
     sample = p.add_mutually_exclusive_group()
     sample.add_argument(
         "--sample",
@@ -93,6 +102,7 @@ def main(argv: list[str] | None = None) -> int:
 
     cfg = build_run_config(
         tasks=args.tasks,
+        models=args.models,
         sample=args.sample,
         all_images=args.all,
         visualize=args.visualize,

@@ -105,6 +105,63 @@ def parse_task_selection(raw: str | None, all_names: list[str]) -> list[str]:
     return names
 
 
+def parse_model_selection(raw: str | None) -> list[str] | None:
+    """Return selected model keys, or None for all models on each task.
+
+    Accepts: 'all' / empty → all models;
+    'astra' | 'custom' | 'astra,custom' (keys from tasks.yaml);
+    also aliases: 'autolabel' → astra, 'roboflow' → custom.
+    """
+    if not raw or raw.strip().lower() == "all":
+        return None
+    aliases = {
+        "astra": "astra",
+        "custom": "custom",
+        "autolabel": "astra",
+        "roboflow": "custom",
+    }
+    keys: list[str] = []
+    for part in raw.split(","):
+        token = part.strip().lower()
+        if not token:
+            continue
+        if token not in aliases:
+            raise ValueError(
+                f"Unknown model '{part.strip()}'. "
+                "Use: astra, custom, autolabel, roboflow, or all"
+            )
+        key = aliases[token]
+        if key not in keys:
+            keys.append(key)
+    if not keys:
+        raise ValueError("No models selected.")
+    return keys
+
+
+def filter_task_models(tasks: list[TaskSpec], model_keys: list[str] | None) -> list[TaskSpec]:
+    """Keep only models whose key is in model_keys (None = keep all)."""
+    if model_keys is None:
+        return tasks
+    out: list[TaskSpec] = []
+    for t in tasks:
+        models = [m for m in t.models if m.key in model_keys]
+        if not models:
+            raise ValueError(
+                f"Task '{t.name}' has none of the selected models {model_keys}. "
+                f"Configured keys: {[m.key for m in t.models]}"
+            )
+        out.append(
+            TaskSpec(
+                name=t.name,
+                gt_project=t.gt_project,
+                gt_version=t.gt_version,
+                classes=list(t.classes),
+                models=models,
+            )
+        )
+    return out
+
+
 def build_task_specs(data: dict[str, Any], selected: list[str]) -> list[TaskSpec]:
     tasks_cfg = data.get("tasks") or {}
     out: list[TaskSpec] = []
@@ -145,6 +202,7 @@ def resolve_api_key(cli_value: str | None = None) -> str:
 def build_run_config(
     *,
     tasks: str | None = None,
+    models: str | None = None,
     sample: int | None = 20,
     all_images: bool = False,
     visualize: bool = False,
@@ -162,6 +220,8 @@ def build_run_config(
     defaults = data.get("defaults") or {}
     all_names = list((data.get("tasks") or {}).keys())
     selected = parse_task_selection(tasks, all_names)
+    model_keys = parse_model_selection(models)
+    task_specs = filter_task_models(build_task_specs(data, selected), model_keys)
 
     sample_size: int | None
     if all_images:
@@ -171,7 +231,7 @@ def build_run_config(
 
     return RunConfig(
         workspace=data.get("workspace", "cgiar-workspace"),
-        tasks=build_task_specs(data, selected),
+        tasks=task_specs,
         match_iou=float(match_iou if match_iou is not None else defaults.get("match_iou", 0.50)),
         custom_conf=float(
             custom_conf if custom_conf is not None else defaults.get("custom_conf", 0.40)
