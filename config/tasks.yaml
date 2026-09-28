@@ -52,9 +52,9 @@ tasks:
   pods:
     gt_project: artemis_2_bushbean_pod_benchmark
     gt_version: 1
+    # Evaluate pods only; Plant_Bean often dominates mAP noise vs Fruit_pod
     classes:
       - Fruit_pod
-      - Plant_Bean
     models:
       - key: astra
         label: GPT-6 Astra
