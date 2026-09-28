@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import random
 from datetime import datetime
@@ -73,6 +74,36 @@ def _run_model_infer(
     raise ValueError(f"Unknown model kind: {model.kind}")
 
 
+def _ckpt_path(run_dir: Path, task_name: str) -> Path:
+    return run_dir / "checkpoints" / f"{task_name}.jsonl"
+
+
+def load_checkpoint(path: Path) -> dict[int, dict]:
+    """Return image_id -> record for completed images (last write wins)."""
+    done: dict[int, dict] = {}
+    if not path.exists():
+        return done
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            done[int(rec["image_id"])] = rec
+    return done
+
+
+def append_checkpoint(path: Path, record: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a") as f:
+        f.write(json.dumps(record) + "\n")
+        f.flush()
+        os.fsync(f.fileno())
+
+
 def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
     print("\n" + "#" * 72)
     print(f"# TASK: {task.name}  GT={task.gt_project}/{task.gt_version}")
@@ -105,9 +136,16 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
         coco.getImgIds(), cfg.sample_size, task.name, cfg.random_seed
     )
 
+    ckpt = _ckpt_path(run_dir, task.name)
+    done = load_checkpoint(ckpt)
+    if done:
+        print(f"  Resume: {len(done)}/{len(sample_ids)} images already in {ckpt}")
+
     model_dets: dict[str, list] = {m.key: [] for m in task.models}
     per_image_rows: list[dict] = []
+    # Keep only enough viz frames for --visualize N (prefer earliest sample order)
     per_image_viz: list[dict] = []
+    model_keys = [m.key for m in task.models]
 
     for i, img_id in enumerate(sample_ids):
         info = coco.loadImgs(img_id)[0]
@@ -118,6 +156,50 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
         gt_pairs = [
             (a["bbox"], coco.loadCats([a["category_id"]])[0]["name"]) for a in anns
         ]
+
+        # ---- resume from checkpoint ----
+        if img_id in done:
+            rec = done[img_id]
+            row = rec["row"]
+            per_image_rows.append(row)
+            for k in model_keys:
+                for p in rec.get("dets", {}).get(k, []):
+                    model_dets[k].append(p)
+            if (
+                cfg.visualize
+                and len(per_image_viz) < cfg.visualize_n
+                and os.path.exists(path)
+            ):
+                img_rgb = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
+                preds_by_key = {}
+                for k in model_keys:
+                    preds_by_key[k] = [
+                        {
+                            "bbox": d["bbox"],
+                            "score": d["score"],
+                            "class": next(
+                                (
+                                    n
+                                    for n, cid in name_to_id.items()
+                                    if cid == d["category_id"]
+                                ),
+                                "object",
+                            ),
+                        }
+                        for d in rec.get("dets", {}).get(k, [])
+                    ]
+                per_image_viz.append(
+                    {
+                        "gt": gt_pairs,
+                        "img": img_rgb,
+                        "preds": preds_by_key,
+                        "image_name": info["file_name"],
+                    }
+                )
+            if (i + 1) % 50 == 0 or i == 0:
+                print(f"\n[{i+1}/{len(sample_ids)}] {info['file_name']}  (cached)")
+            continue
+
         print(f"\n[{i+1}/{len(sample_ids)}] {info['file_name']}  GT={len(gt_pairs)}")
 
         row = {
@@ -141,14 +223,22 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
                 ):
                     row[f"{k}_{col}"] = None
             per_image_rows.append(row)
+            append_checkpoint(
+                ckpt, {"image_id": img_id, "row": row, "dets": {k: [] for k in model_keys}}
+            )
             continue
 
         img_rgb = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2RGB)
         viz = {"gt": gt_pairs, "img": img_rgb, "preds": {}, "image_name": info["file_name"]}
+        dets_this: dict[str, list] = {k: [] for k in model_keys}
 
         for m in task.models:
             k = m.key
-            preds = _run_model_infer(cfg, task, m, path, ontology)
+            try:
+                preds = _run_model_infer(cfg, task, m, path, ontology)
+            except Exception as e:
+                print(f"    ❌ {k} infer error (skipping image preds): {e}")
+                preds = []
             preds = map_pred_classes(preds, name_to_id)
             print(f"    {k}: {len(preds)} preds")
             viz["preds"][k] = preds
@@ -169,24 +259,33 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
             )
 
             for p in preds:
-                model_dets[k].append(
-                    {
-                        "image_id": img_id,
-                        "category_id": id_by_norm[norm_name(p["class"])],
-                        "bbox": p["bbox"],
-                        "score": p["score"],
-                    }
-                )
+                det = {
+                    "image_id": img_id,
+                    "category_id": id_by_norm[norm_name(p["class"])],
+                    "bbox": p["bbox"],
+                    "score": p["score"],
+                }
+                model_dets[k].append(det)
+                dets_this[k].append(det)
 
         per_image_rows.append(row)
-        per_image_viz.append(viz)
+        if cfg.visualize and len(per_image_viz) < cfg.visualize_n:
+            per_image_viz.append(viz)
+
+        append_checkpoint(
+            ckpt, {"image_id": img_id, "row": row, "dets": dets_this}
+        )
+        # Lightweight progress CSV so a kill mid-run still leaves something readable
+        pd.DataFrame(per_image_rows).to_csv(
+            run_dir / f"{task.name}_per_image.csv", index=False
+        )
 
     df_img = pd.DataFrame(per_image_rows)
     img_csv = run_dir / f"{task.name}_per_image.csv"
     df_img.to_csv(img_csv, index=False)
     print(f"\n📄 Wrote {img_csv}")
 
-    expected_total = int(df_img["gt_count"].fillna(0).sum())
+    expected_total = int(df_img["gt_count"].fillna(0).sum()) if len(df_img) else 0
     model_rows = []
     results = {
         "task": task.name,
@@ -202,9 +301,11 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
         pred_total = len(model_dets[key])
         map50 = coco_stats.get("AP_50")
 
-        both_sum = int(df_img[f"{key}_n_both"].fillna(0).sum())
-        only_gt_sum = int(df_img[f"{key}_n_only_gt"].fillna(0).sum())
-        only_pred_sum = int(df_img[f"{key}_n_only_pred"].fillna(0).sum())
+        both_sum = int(df_img[f"{key}_n_both"].fillna(0).sum()) if len(df_img) else 0
+        only_gt_sum = int(df_img[f"{key}_n_only_gt"].fillna(0).sum()) if len(df_img) else 0
+        only_pred_sum = (
+            int(df_img[f"{key}_n_only_pred"].fillna(0).sum()) if len(df_img) else 0
+        )
 
         mrow = {
             "task": task.name,
@@ -324,13 +425,19 @@ def write_summary(all_results: list[dict], run_dir: Path) -> pd.DataFrame | None
 
 
 def run_evaluation(cfg: RunConfig) -> Path:
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    task_tag = "-".join(t.name for t in cfg.tasks) or "none"
-    run_dir = cfg.output_dir / f"{stamp}_{task_tag}"
-    run_dir.mkdir(parents=True, exist_ok=True)
+    if cfg.resume_dir is not None:
+        run_dir = Path(cfg.resume_dir)
+        run_dir.mkdir(parents=True, exist_ok=True)
+        print("Resuming into:", run_dir)
+    else:
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        task_tag = "-".join(t.name for t in cfg.tasks) or "none"
+        run_dir = cfg.output_dir / f"{stamp}_{task_tag}"
+        run_dir.mkdir(parents=True, exist_ok=True)
+        print("Output dir:", run_dir)
+
     cfg.download_dir.mkdir(parents=True, exist_ok=True)
 
-    print("Output dir:", run_dir)
     print("Tasks:", [t.name for t in cfg.tasks])
     print(
         "Models:",

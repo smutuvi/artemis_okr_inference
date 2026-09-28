@@ -3,9 +3,18 @@
 from __future__ import annotations
 
 import base64
-from typing import Any
+import time
+from typing import Any, Callable
 
 import requests
+
+# Transient network / server failures that should be retried on long runs.
+_RETRYABLE = (
+    requests.exceptions.ChunkedEncodingError,
+    requests.exceptions.ConnectionError,
+    requests.exceptions.Timeout,
+    requests.exceptions.SSLError,
+)
 
 
 def file_b64(path: str) -> str:
@@ -52,6 +61,43 @@ def parse_boxes(payload: Any) -> list[dict]:
     return out
 
 
+def _with_retries(
+    label: str,
+    fn: Callable[[], Any],
+    *,
+    retries: int = 5,
+    base_delay: float = 2.0,
+) -> Any:
+    last_err: Exception | None = None
+    for attempt in range(1, retries + 1):
+        try:
+            return fn()
+        except _RETRYABLE as e:
+            last_err = e
+            if attempt >= retries:
+                break
+            delay = base_delay * (2 ** (attempt - 1))
+            print(
+                f"      ⚠️ {label} attempt {attempt}/{retries} failed "
+                f"({type(e).__name__}: {e}); retry in {delay:.0f}s"
+            )
+            time.sleep(delay)
+        except requests.exceptions.HTTPError as e:
+            # Retry 429 / 5xx
+            status = getattr(getattr(e, "response", None), "status_code", None)
+            last_err = e
+            if status not in (429, 500, 502, 503, 504) or attempt >= retries:
+                break
+            delay = base_delay * (2 ** (attempt - 1))
+            print(
+                f"      ⚠️ {label} HTTP {status} attempt {attempt}/{retries}; "
+                f"retry in {delay:.0f}s"
+            )
+            time.sleep(delay)
+    print(f"      ❌ {label} failed after {retries} attempts: {last_err}")
+    return None
+
+
 def infer_astra(
     *,
     workspace: str,
@@ -61,6 +107,7 @@ def infer_astra(
     ontology: dict[str, str],
     model_type: str = "gpt-6-astra-boxes",
     timeout: int = 420,
+    retries: int = 5,
 ) -> list[dict]:
     url = (
         f"https://api.roboflow.com/{workspace}/{gt_project_id}/autolabel/preview"
@@ -71,16 +118,23 @@ def infer_astra(
         "image": {"type": "base64", "value": file_b64(image_path)},
         "ontology": ontology,
     }
-    r = requests.post(url, json=body, timeout=timeout)
-    print(f"      Astra HTTP {r.status_code}")
-    if not r.ok:
-        print("      ", r.text[:300])
-        return []
-    try:
-        return parse_boxes(r.json())
-    except Exception:
-        print("      non-JSON:", r.text[:300])
-        return []
+
+    def _once():
+        r = requests.post(url, json=body, timeout=timeout)
+        print(f"      Astra HTTP {r.status_code}")
+        if r.status_code in (429, 500, 502, 503, 504):
+            r.raise_for_status()
+        if not r.ok:
+            print("      ", r.text[:300])
+            return []
+        try:
+            return parse_boxes(r.json())
+        except Exception:
+            print("      non-JSON:", r.text[:300])
+            return []
+
+    result = _with_retries("Astra", _once, retries=retries)
+    return result if isinstance(result, list) else []
 
 
 def infer_custom(
@@ -90,20 +144,28 @@ def infer_custom(
     image_path: str,
     confidence: float = 0.40,
     timeout: int = 180,
+    retries: int = 5,
 ) -> list[dict]:
     url = (
         f"https://serverless.roboflow.com/{model_id}"
         f"?api_key={api_key}&confidence={confidence}"
     )
-    with open(image_path, "rb") as f:
-        r = requests.post(url, files={"file": f}, timeout=timeout)
-    print(f"      Custom[{model_id}] HTTP {r.status_code}")
-    if not r.ok:
-        print("      ", r.text[:300])
-        return []
-    try:
-        data = r.json()
-    except Exception:
-        print("      non-JSON:", r.text[:300])
-        return []
-    return [p for p in parse_boxes(data) if p["score"] >= confidence]
+
+    def _once():
+        with open(image_path, "rb") as f:
+            r = requests.post(url, files={"file": f}, timeout=timeout)
+        print(f"      Custom[{model_id}] HTTP {r.status_code}")
+        if r.status_code in (429, 500, 502, 503, 504):
+            r.raise_for_status()
+        if not r.ok:
+            print("      ", r.text[:300])
+            return []
+        try:
+            data = r.json()
+        except Exception:
+            print("      non-JSON:", r.text[:300])
+            return []
+        return [p for p in parse_boxes(data) if p["score"] >= confidence]
+
+    result = _with_retries(f"Custom[{model_id}]", _once, retries=retries)
+    return result if isinstance(result, list) else []
