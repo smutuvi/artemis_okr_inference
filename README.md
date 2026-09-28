@@ -73,10 +73,15 @@ python run.py --tasks pods --all
 python run.py --tasks plant_stand,flowers,pods --sample 10 --visualize 2
 ```
 
-### All tasks, full dataset, no viz
+### Full dataset, custom only, with resume after a crash
 
 ```bash
-python run.py --tasks all --all
+# start (writes checkpoints after each image)
+python run.py --tasks flowers,pods --models custom --all --visualize 5
+
+# if it dies mid-run, continue into the same output folder:
+python run.py --tasks flowers,pods --models custom --all --visualize 5 \
+  --resume outputs/20260928_044301_flowers-pods
 ```
 
 ### Module form
@@ -94,6 +99,7 @@ python -m okr_inference --tasks flowers --sample 5 --visualize
 | `--sample N` | `20` | Seeded sample size per task |
 | `--all` | off | Use every image (overrides `--sample`) |
 | `--visualize [N]` | off (`0`) | Save playground panels for N images/model (`--visualize` alone ⇒ 1) |
+| `--resume RUN_DIR` | off | Continue an interrupted run (skip checkpointed images) |
 | `--seed` | `42` (YAML) | Sampling seed |
 | `--custom-conf` | `0.40` | Confidence floor for custom serverless models |
 | `--match-iou` | `0.50` | IoU for match-map / micro precision-recall |

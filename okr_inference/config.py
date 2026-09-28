@@ -80,6 +80,7 @@ class RunConfig:
     output_dir: Path = field(default_factory=lambda: DEFAULT_OUTPUT_DIR)
     download_dir: Path = field(default_factory=lambda: DEFAULT_DOWNLOAD_DIR)
     api_key: str = ""
+    resume_dir: Path | None = None  # reuse this run folder and skip done images
 
 
 def load_tasks_yaml(path: Path | None = None) -> dict[str, Any]:
@@ -223,6 +224,7 @@ def build_run_config(
     match_iou: float | None = None,
     custom_conf: float | None = None,
     force_redownload: bool | None = None,
+    resume_dir: Path | None = None,
 ) -> RunConfig:
     data = load_tasks_yaml(tasks_yaml)
     defaults = data.get("defaults") or {}
@@ -236,6 +238,10 @@ def build_run_config(
         sample_size = None
     else:
         sample_size = sample if sample is not None else 20
+
+    resume = Path(resume_dir) if resume_dir else None
+    if resume is not None and not resume.is_dir():
+        raise ValueError(f"--resume path is not a directory: {resume}")
 
     return RunConfig(
         workspace=data.get("workspace", "cgiar-workspace"),
@@ -257,4 +263,5 @@ def build_run_config(
         output_dir=Path(output_dir or DEFAULT_OUTPUT_DIR),
         download_dir=Path(download_dir or DEFAULT_DOWNLOAD_DIR),
         api_key=resolve_api_key(api_key),
+        resume_dir=resume,
     )

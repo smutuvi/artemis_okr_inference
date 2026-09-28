@@ -92,6 +92,16 @@ def build_parser() -> argparse.ArgumentParser:
         help="Delete matching local GT folders before downloading.",
     )
     p.add_argument(
+        "--resume",
+        type=Path,
+        default=None,
+        metavar="RUN_DIR",
+        help=(
+            "Continue an interrupted run in this output folder "
+            "(skips images already saved under checkpoints/*.jsonl)."
+        ),
+    )
+    p.add_argument(
         "--list-tasks",
         action="store_true",
         help="Print available task names from the YAML and exit.",
@@ -128,6 +138,7 @@ def main(argv: list[str] | None = None) -> int:
         match_iou=args.match_iou,
         custom_conf=args.custom_conf,
         force_redownload=args.force_redownload,
+        resume_dir=args.resume,
     )
     run_evaluation(cfg)
     return 0
