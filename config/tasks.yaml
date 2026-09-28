@@ -1,0 +1,68 @@
+# Artemis OKR evaluation tasks (Astra Autolabel vs custom Roboflow models).
+# Select which to run via:  --tasks flowers,pods   or  --tasks all
+
+workspace: cgiar-workspace
+
+defaults:
+  match_iou: 0.50
+  custom_conf: 0.40
+  random_seed: 42
+  download_format: coco
+  force_redownload: false
+
+tasks:
+  plant_stand:
+    gt_project: artemis_2_bushbean_bb_benchmark-hxtfg
+    gt_version: 3
+    classes:
+      - bushbean
+    models:
+      - key: astra
+        label: GPT-6 Astra
+        provider: Roboflow Autolabel
+        kind: autolabel
+        model_type: gpt-6-astra-boxes
+      - key: custom
+        label: Custom plant-stand v6
+        provider: Roboflow Serverless
+        kind: roboflow
+        model_id: beanbush_plantstand_bb_344_2/6
+
+  flowers:
+    gt_project: artemis_2_bushbean_bb_benchmark2
+    gt_version: 3
+    classes:
+      - Flower-closed
+      - Flower-dry
+      - Flower-fallen
+      - Flower-open
+      - Plant-Bean
+    models:
+      - key: astra
+        label: GPT-6 Astra
+        provider: Roboflow Autolabel
+        kind: autolabel
+        model_type: gpt-6-astra-boxes
+      - key: custom
+        label: Custom flower v44
+        provider: Roboflow Serverless
+        kind: roboflow
+        model_id: dup_merged_1_to_15_flower_inst_seg-mhpnh/44
+
+  pods:
+    gt_project: artemis_2_bushbean_pod_benchmark
+    gt_version: 1
+    classes:
+      - Fruit_pod
+      - Plant_Bean
+    models:
+      - key: astra
+        label: GPT-6 Astra
+        provider: Roboflow Autolabel
+        kind: autolabel
+        model_type: gpt-6-astra-boxes
+      - key: custom
+        label: Custom pod v53
+        provider: Roboflow Serverless
+        kind: roboflow
+        model_id: artemis2_pod_segmentation_batch3-gd8ng/53

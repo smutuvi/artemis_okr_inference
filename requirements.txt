@@ -1,0 +1,9 @@
+roboflow>=1.1
+requests>=2.32,<3
+Pillow>=10,<12
+pycocotools>=2.0
+matplotlib>=3.7
+opencv-python-headless>=4.8
+pandas>=2.0
+PyYAML>=6.0
+numpy>=1.24
