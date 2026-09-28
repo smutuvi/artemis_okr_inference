@@ -9,8 +9,8 @@ benchmark datasets.
 - Optional **playground-style** visualization (detections | match map | mAP card)
 - Writes **per-task CSVs** + a **summary leaderboard**
 
-Match-map colors: green = only GT, red = only model, **yellow = both**
-(high contrast on the dark panel).
+Match-map colors: green = only GT, red = only model, **yellow = both**.
+Photo overlay: **pink = ground truth**, **thick cyan = predictions**.
 
 ## Setup (server)
 

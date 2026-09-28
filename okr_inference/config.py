@@ -22,6 +22,14 @@ COLOR_BOTH_LEGEND = "#FFDC00"
 COLOR_ONLY_GT_LEGEND = "#3cc850"
 COLOR_ONLY_PRED_LEGEND = "#e03c3c"
 
+# Left photo overlay (OpenCV draws on RGB arrays here → use RGB tuples).
+COLOR_PHOTO_GT = (255, 105, 180)       # pink — ground truth
+COLOR_PHOTO_PRED = (0, 210, 255)       # cyan — model predictions
+COLOR_PHOTO_GT_LEGEND = "#FF69B4"
+COLOR_PHOTO_PRED_LEGEND = "#00D2FF"
+PHOTO_BOX_THICKNESS_GT = 3
+PHOTO_BOX_THICKNESS_PRED = 4
+
 COCO_STAT_NAMES = [
     "AP_50_95",
     "AP_50",
