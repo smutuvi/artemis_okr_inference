@@ -36,7 +36,7 @@ Defined in [`config/tasks.yaml`](config/tasks.yaml):
 |------|------------|---------|--------------|
 | `plant_stand` | `artemis_2_bushbean_bb_benchmark-hxtfg` / 3 | `bushbean` | `beanbush_plantstand_bb_344_2/6` |
 | `flowers` | `artemis_2_bushbean_bb_benchmark2` / 3 | flower stages + `Plant-Bean` | `dup_merged_1_to_15_flower_inst_seg-mhpnh/44` |
-| `pods` | `artemis_2_bushbean_pod_benchmark` / 1 | `Fruit_pod`, `Plant_Bean` | `artemis2_pod_segmentation_batch3-gd8ng/53` |
+| `pods` | `artemis_2_bushbean_pod_benchmark` / 1 | `Fruit_pod` only | `artemis2_pod_segmentation_batch3-gd8ng/53` |
 
 Edit that YAML to add/change tasks or models. List names:
 
