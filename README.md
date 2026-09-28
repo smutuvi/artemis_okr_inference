@@ -57,6 +57,7 @@ python run.py --tasks flowers,pods --sample 20
 ```bash
 python run.py --tasks flowers,pods --models astra --sample 20
 python run.py --tasks pods --models custom --sample 20 --visualize
+python run.py --tasks pods --models custom --sample 20 --visualize 5
 # aliases also work: --models autolabel  |  --models roboflow
 ```
 
@@ -69,7 +70,7 @@ python run.py --tasks pods --all
 ### Three tasks, sample 10, with visualizations
 
 ```bash
-python run.py --tasks plant_stand,flowers,pods --sample 10 --visualize --visualize-n 2
+python run.py --tasks plant_stand,flowers,pods --sample 10 --visualize 2
 ```
 
 ### All tasks, full dataset, no viz
@@ -92,14 +93,13 @@ python -m okr_inference --tasks flowers --sample 5 --visualize
 | `--models` | `all` | `astra`, `custom`, `astra,custom`, or `all` |
 | `--sample N` | `20` | Seeded sample size per task |
 | `--all` | off | Use every image (overrides `--sample`) |
-| `--visualize` | off | Save playground panels under `outputs/.../visualizations/` |
-| `--visualize-n` | `1` | Panels per model (first N sample images) |
+| `--visualize [N]` | off (`0`) | Save playground panels for N images/model (`--visualize` alone ⇒ 1) |
 | `--seed` | `42` (YAML) | Sampling seed |
 | `--custom-conf` | `0.40` | Confidence floor for custom serverless models |
 | `--match-iou` | `0.50` | IoU for match-map / micro precision-recall |
-| `--force-redownload` | off | Wipe cached GT folders before download |
+| `--force-redownload` | off | Wipe cached GT folders and download again |
 | `--output-dir` | `outputs/` | CSV + viz root |
-| `--download-dir` | `roboflow_datasets/` | GT cache |
+| `--download-dir` | `roboflow_datasets/` | GT cache (reused across runs; skip re-download if present) |
 | `--api-key` | `$ROBOFLOW_API_KEY` | Roboflow key |
 
 ## Outputs

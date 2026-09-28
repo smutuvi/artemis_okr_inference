@@ -5,6 +5,7 @@ from __future__ import annotations
 import glob
 import json
 import os
+import re
 import shutil
 from pathlib import Path
 
@@ -40,6 +41,43 @@ def find_coco_split(dataset_location: str | Path) -> tuple[str, str, str]:
     raise FileNotFoundError(f"No COCO annotations under {dataset_location}")
 
 
+def _norm_token(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(s).lower())
+
+
+def find_cached_dataset(download_dir: Path, project_id: str, version: int) -> Path | None:
+    """Return an existing dataset folder under download_dir that looks like project/version."""
+    if not download_dir.is_dir():
+        return None
+
+    proj = _norm_token(project_id)
+    ver = str(version)
+    matches: list[Path] = []
+
+    for path in download_dir.iterdir():
+        if not path.is_dir():
+            continue
+        base = _norm_token(path.name)
+        # Roboflow folders look like ProjectName-3 or project_name-3
+        if proj not in base:
+            continue
+        if not (base.endswith(ver) or f"-{ver}" in path.name.lower() or path.name.endswith(f"/{ver}")):
+            # also accept "...-3" after normalization stripped dashes → ends with version digits
+            if not base.endswith(ver):
+                continue
+        try:
+            find_coco_split(path)
+        except FileNotFoundError:
+            continue
+        matches.append(path)
+
+    if not matches:
+        return None
+    # Prefer newest mtime if several
+    matches.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return matches[0]
+
+
 def download_gt(
     *,
     workspace: str,
@@ -48,9 +86,18 @@ def download_gt(
     download_dir: Path,
     download_format: str = "coco",
     force_redownload: bool = False,
-):
+) -> Path:
     download_dir = Path(download_dir)
     download_dir.mkdir(parents=True, exist_ok=True)
+
+    if not force_redownload:
+        cached = find_cached_dataset(download_dir, task.gt_project, task.gt_version)
+        if cached is not None:
+            print(
+                f"  Reusing cached GT {task.gt_project}/{task.gt_version}:\n"
+                f"    {cached}"
+            )
+            return cached
 
     print(f"  Downloading {task.gt_project}/{task.gt_version} as {download_format}…")
     rf = Roboflow(api_key=api_key)
@@ -73,12 +120,18 @@ def download_gt(
     cwd = os.getcwd()
     try:
         os.chdir(download_dir)
-        ds = version_obj.download(download_format, overwrite=True)
+        # overwrite=False lets the SDK skip if the folder already exists
+        ds = version_obj.download(download_format, overwrite=force_redownload)
     finally:
         os.chdir(cwd)
 
     location = Path(ds.location)
     if not location.is_absolute():
         location = download_dir / location
+    # If SDK returned a relative path that already existed elsewhere, re-resolve cache
+    if not location.exists():
+        cached = find_cached_dataset(download_dir, task.gt_project, task.gt_version)
+        if cached is not None:
+            location = cached
     print(f"  location={location}")
     return location
