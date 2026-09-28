@@ -1,0 +1,2 @@
+task,model_label,provider,AP_50,AP_50_95,AP_75,AR_maxDets100,expected_objects,predicted_objects,matched_both,micro_precision_iou50,micro_recall_iou50
+flowers,Custom flower v44,Roboflow Serverless,0.34166656907603044,0.2288460786565341,0.24781953256859743,0.28464995960698897,8585,4971,3785,0.7614162140414403,0.44088526499708797
