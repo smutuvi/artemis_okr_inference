@@ -148,7 +148,12 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
 
         for m in task.models:
             k = m.key
-            preds = _run_model_infer(cfg, task, m, path, ontology)
+            try:
+                preds = _run_model_infer(cfg, task, m, path, ontology)
+            except Exception as e:
+                # Retries already happen inside infer_*; keep the full run alive.
+                print(f"    ❌ {k} infer error (skipping image preds): {e}")
+                preds = []
             preds = map_pred_classes(preds, name_to_id)
             print(f"    {k}: {len(preds)} preds")
             viz["preds"][k] = preds
