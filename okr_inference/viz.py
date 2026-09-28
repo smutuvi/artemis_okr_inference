@@ -16,33 +16,58 @@ from okr_inference.config import (
     COLOR_ONLY_GT_LEGEND,
     COLOR_ONLY_PRED,
     COLOR_ONLY_PRED_LEGEND,
+    COLOR_PHOTO_GT,
+    COLOR_PHOTO_GT_LEGEND,
+    COLOR_PHOTO_PRED,
+    COLOR_PHOTO_PRED_LEGEND,
+    PHOTO_BOX_THICKNESS_GT,
+    PHOTO_BOX_THICKNESS_PRED,
 )
 from okr_inference.metrics import match_boxes
 
 
-def draw_detections(img_rgb, boxes, color=(0, 210, 255)):
-    out = img_rgb.copy()
-    legend_cls = None
+def _iter_bboxes(boxes):
+    """Yield (x, y, w, h) from pred dicts or (bbox, class) GT pairs."""
     for item in boxes:
         if isinstance(item, dict):
             x, y, w, h = map(int, item["bbox"])
-            legend_cls = item.get("class", legend_cls)
         else:
-            (x, y, w, h), cls = item
+            (x, y, w, h), _cls = item
             x, y, w, h = map(int, (x, y, w, h))
-            legend_cls = cls
-        cv2.rectangle(out, (x, y), (x + w, y + h), color, 2)
-    if legend_cls:
-        cv2.rectangle(out, (8, 8), (26, 26), color, -1)
+        yield x, y, w, h
+
+
+def draw_photo_overlay(
+    img_rgb,
+    gt_pairs=None,
+    preds=None,
+    *,
+    gt_color=COLOR_PHOTO_GT,
+    pred_color=COLOR_PHOTO_PRED,
+    gt_thickness=PHOTO_BOX_THICKNESS_GT,
+    pred_thickness=PHOTO_BOX_THICKNESS_PRED,
+):
+    """Draw GT (pink) then predictions (thick cyan) on the photo."""
+    out = img_rgb.copy()
+    for x, y, w, h in _iter_bboxes(gt_pairs or []):
+        cv2.rectangle(out, (x, y), (x + w, y + h), gt_color, gt_thickness)
+    for x, y, w, h in _iter_bboxes(preds or []):
+        cv2.rectangle(out, (x, y), (x + w, y + h), pred_color, pred_thickness)
+
+    # Corner legend swatches
+    y0 = 8
+    if gt_pairs:
+        cv2.rectangle(out, (8, y0), (26, y0 + 18), gt_color, -1)
         cv2.putText(
-            out,
-            str(legend_cls),
-            (32, 22),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.55,
-            (240, 240, 240),
-            1,
-            cv2.LINE_AA,
+            out, "GT", (32, y0 + 14),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.55, (240, 240, 240), 1, cv2.LINE_AA,
+        )
+        y0 += 26
+    if preds is not None:
+        cv2.rectangle(out, (8, y0), (26, y0 + 18), pred_color, -1)
+        cv2.putText(
+            out, "pred", (32, y0 + 14),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.55, (240, 240, 240), 1, cv2.LINE_AA,
         )
     return out
 
@@ -78,7 +103,7 @@ def playground_panel(
     show: bool = False,
 ):
     both, only_gt, only_pred = match_boxes(gt_pairs, preds, match_iou)
-    det_img = draw_detections(img_rgb, preds)
+    det_img = draw_photo_overlay(img_rgb, gt_pairs=gt_pairs, preds=preds)
     match_img = draw_match_map(img_rgb.shape, both, only_gt, only_pred)
 
     fig = plt.figure(figsize=(16, 5.2), facecolor="#111111")
@@ -90,6 +115,15 @@ def playground_panel(
     ax0.set_yticks([])
     for s in ax0.spines.values():
         s.set_color("#333")
+    ax0.legend(
+        handles=[
+            mpatches.Patch(color=COLOR_PHOTO_GT_LEGEND, label="ground truth"),
+            mpatches.Patch(color=COLOR_PHOTO_PRED_LEGEND, label="prediction"),
+        ],
+        loc="lower left",
+        fontsize=8,
+        framealpha=0.85,
+    )
 
     ax1 = fig.add_subplot(gs[1])
     ax1.imshow(cv2.cvtColor(match_img, cv2.COLOR_BGR2RGB))

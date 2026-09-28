@@ -56,15 +56,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--visualize",
-        action="store_true",
-        help="Save playground-style panels (detections | match map | mAP card).",
+        nargs="?",
+        const=1,
+        default=0,
+        type=int,
+        metavar="N",
+        help=(
+            "Save playground-style panels for N images per model "
+            "(detections | match map | mAP card). "
+            "Omit N to use 1: --visualize   or   --visualize 5"
+        ),
     )
     p.add_argument(
         "--visualize-n",
         type=int,
-        default=1,
+        default=None,
         metavar="N",
-        help="How many sample images per model to visualize (requires --visualize).",
+        help="Deprecated alias for --visualize N (same meaning).",
     )
     p.add_argument("--api-key", default=None, help="Roboflow API key (else $ROBOFLOW_API_KEY).")
     p.add_argument(
@@ -100,13 +108,18 @@ def main(argv: list[str] | None = None) -> int:
             print(name)
         return 0
 
+    # --visualize [N]  (default N=1); --visualize-n kept as alias
+    viz_n = args.visualize_n if args.visualize_n is not None else args.visualize
+    if viz_n < 0:
+        parser.error("--visualize N must be >= 0")
+
     cfg = build_run_config(
         tasks=args.tasks,
         models=args.models,
         sample=args.sample,
         all_images=args.all,
-        visualize=args.visualize,
-        visualize_n=args.visualize_n,
+        visualize=viz_n > 0,
+        visualize_n=viz_n,
         tasks_yaml=args.tasks_yaml,
         output_dir=args.output_dir,
         download_dir=args.download_dir,
