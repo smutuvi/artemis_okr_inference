@@ -114,37 +114,99 @@ def parse_task_selection(raw: str | None, all_names: list[str]) -> list[str]:
     return names
 
 
-def parse_model_selection(raw: str | None) -> list[str] | None:
-    """Return selected model keys, or None for all models on each task.
+def parse_model_selection(
+    raw: str | None,
+    available_keys: list[str] | None = None,
+) -> tuple[list[str] | None, str | None]:
+    """Parse --model / --models.
 
-    Accepts: 'all' / empty → all models;
-    'astra' | 'custom' | 'astra,custom' (keys from tasks.yaml);
-    also aliases: 'autolabel' → astra, 'roboflow' → custom.
+    Returns (keys, adhoc_model_type):
+      - keys is None → run every model listed on each task
+      - keys is a list → filter task models to those keys
+      - adhoc_model_type set → inject a one-off Autolabel modelType
+        (used when the user passes a raw type like gpt-5.6-sol-boxes)
+
+    Accepts known keys (astra, custom, sol, …), aliases, comma lists, or a
+    raw Autolabel modelType string.
     """
     if not raw or raw.strip().lower() == "all":
-        return None
+        return None, None
+
     aliases = {
         "astra": "astra",
         "custom": "custom",
+        "sol": "sol",
+        "gpt-sol": "sol",
+        "gpt5.6-sol": "sol",
+        "gpt-5.6-sol": "sol",
+        "gpt5-6-sol": "sol",
+        "gpt-5-6-sol": "sol",
         "autolabel": "astra",
         "roboflow": "custom",
     }
+    available = set(available_keys or [])
     keys: list[str] = []
-    for part in raw.split(","):
-        token = part.strip().lower()
-        if not token:
-            continue
-        if token not in aliases:
+    adhoc: str | None = None
+
+    parts = [p.strip() for p in raw.split(",") if p.strip()]
+    # Single raw Autolabel modelType (e.g. gpt-5.6-sol-boxes)
+    if len(parts) == 1:
+        token = parts[0]
+        low = token.lower()
+        if low in aliases:
+            return [aliases[low]], None
+        if low in available:
+            return [low], None
+        if "gpt-" in low or low.endswith("-boxes") or "/" in low:
+            return None, token  # preserve original casing for API
+
+    for part in parts:
+        low = part.lower()
+        if low in aliases:
+            key = aliases[low]
+        elif low in available:
+            key = low
+        else:
+            known = sorted(set(aliases) | available | {"all"})
             raise ValueError(
-                f"Unknown model '{part.strip()}'. "
-                "Use: astra, custom, autolabel, roboflow, or all"
+                f"Unknown model '{part}'. Use one of: {', '.join(known)} "
+                "or a raw Autolabel modelType like gpt-5.6-sol-boxes"
             )
-        key = aliases[token]
         if key not in keys:
             keys.append(key)
-    if not keys:
+
+    if not keys and not adhoc:
         raise ValueError("No models selected.")
-    return keys
+    return keys, adhoc
+
+
+def inject_autolabel_model(tasks: list[TaskSpec], model_type: str) -> list[TaskSpec]:
+    """Replace each task's models with a single Autolabel model of model_type."""
+    low = model_type.lower()
+    if "sol" in low:
+        key, label = "sol", "GPT-5.6 Sol"
+    elif "astra" in low:
+        key, label = "astra", "GPT-6 Astra"
+    else:
+        key, label = "adhoc", model_type
+
+    model = ModelSpec(
+        key=key,
+        label=label,
+        provider="Roboflow Autolabel",
+        kind="autolabel",
+        model_type=model_type,
+    )
+    return [
+        TaskSpec(
+            name=t.name,
+            gt_project=t.gt_project,
+            gt_version=t.gt_version,
+            classes=list(t.classes),
+            models=[model],
+        )
+        for t in tasks
+    ]
 
 
 def filter_task_models(tasks: list[TaskSpec], model_keys: list[str] | None) -> list[TaskSpec]:
@@ -230,8 +292,15 @@ def build_run_config(
     defaults = data.get("defaults") or {}
     all_names = list((data.get("tasks") or {}).keys())
     selected = parse_task_selection(tasks, all_names)
-    model_keys = parse_model_selection(models)
-    task_specs = filter_task_models(build_task_specs(data, selected), model_keys)
+    task_specs = build_task_specs(data, selected)
+    available_model_keys = sorted(
+        {m.key for t in task_specs for m in t.models}
+    )
+    model_keys, adhoc_type = parse_model_selection(models, available_model_keys)
+    if adhoc_type:
+        task_specs = inject_autolabel_model(task_specs, adhoc_type)
+    else:
+        task_specs = filter_task_models(task_specs, model_keys)
 
     sample_size: int | None
     if all_images:

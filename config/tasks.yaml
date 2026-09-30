@@ -1,5 +1,6 @@
-# Artemis OKR evaluation tasks (Astra Autolabel vs custom Roboflow models).
+# Artemis OKR evaluation tasks (Astra / Sol Autolabel vs custom Roboflow models).
 # Select which to run via:  --tasks flowers,pods   or  --tasks all
+# Select models via:        --model sol  |  --models astra,custom  |  --models all
 
 workspace: cgiar-workspace
 
@@ -22,6 +23,11 @@ tasks:
         provider: Roboflow Autolabel
         kind: autolabel
         model_type: gpt-6-astra-boxes
+      - key: sol
+        label: GPT-5.6 Sol
+        provider: Roboflow Autolabel
+        kind: autolabel
+        model_type: gpt-5.6-sol-boxes
       - key: custom
         label: Custom plant-stand v6
         provider: Roboflow Serverless
@@ -43,6 +49,11 @@ tasks:
         provider: Roboflow Autolabel
         kind: autolabel
         model_type: gpt-6-astra-boxes
+      - key: sol
+        label: GPT-5.6 Sol
+        provider: Roboflow Autolabel
+        kind: autolabel
+        model_type: gpt-5.6-sol-boxes
       - key: custom
         label: Custom flower v44
         provider: Roboflow Serverless
@@ -61,6 +72,11 @@ tasks:
         provider: Roboflow Autolabel
         kind: autolabel
         model_type: gpt-6-astra-boxes
+      - key: sol
+        label: GPT-5.6 Sol
+        provider: Roboflow Autolabel
+        kind: autolabel
+        model_type: gpt-5.6-sol-boxes
       - key: custom
         label: Custom pod v53
         provider: Roboflow Serverless
