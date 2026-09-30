@@ -124,7 +124,7 @@ def parse_model_selection(
       - keys is None → run every model listed on each task
       - keys is a list → filter task models to those keys
       - adhoc_model_type set → inject a one-off Autolabel modelType
-        (used when the user passes a raw type like gpt-5.6-sol-boxes)
+        (used when the user passes a raw type like gpt-6-sol-boxes)
 
     Accepts known keys (astra, custom, sol, …), aliases, comma lists, or a
     raw Autolabel modelType string.
@@ -137,10 +137,8 @@ def parse_model_selection(
         "custom": "custom",
         "sol": "sol",
         "gpt-sol": "sol",
-        "gpt5.6-sol": "sol",
-        "gpt-5.6-sol": "sol",
-        "gpt5-6-sol": "sol",
-        "gpt-5-6-sol": "sol",
+        "gpt6-sol": "sol",
+        "gpt-6-sol": "sol",
         "autolabel": "astra",
         "roboflow": "custom",
     }
@@ -149,7 +147,7 @@ def parse_model_selection(
     adhoc: str | None = None
 
     parts = [p.strip() for p in raw.split(",") if p.strip()]
-    # Single raw Autolabel modelType (e.g. gpt-5.6-sol-boxes)
+    # Single raw Autolabel modelType (e.g. gpt-6-sol-boxes)
     if len(parts) == 1:
         token = parts[0]
         low = token.lower()
@@ -170,7 +168,7 @@ def parse_model_selection(
             known = sorted(set(aliases) | available | {"all"})
             raise ValueError(
                 f"Unknown model '{part}'. Use one of: {', '.join(known)} "
-                "or a raw Autolabel modelType like gpt-5.6-sol-boxes"
+                "or a raw Autolabel modelType like gpt-6-sol-boxes"
             )
         if key not in keys:
             keys.append(key)
@@ -184,7 +182,7 @@ def inject_autolabel_model(tasks: list[TaskSpec], model_type: str) -> list[TaskS
     """Replace each task's models with a single Autolabel model of model_type."""
     low = model_type.lower()
     if "sol" in low:
-        key, label = "sol", "GPT-5.6 Sol"
+        key, label = "sol", "GPT-6 Sol"
     elif "astra" in low:
         key, label = "astra", "GPT-6 Astra"
     else:

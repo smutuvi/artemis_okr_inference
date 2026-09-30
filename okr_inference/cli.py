@@ -39,9 +39,9 @@ def build_parser() -> argparse.ArgumentParser:
         default="all",
         help=(
             "Which model(s) to run: astra, sol, custom, comma list, or all. "
-            "Aliases: gpt-5.6-sol→sol, autolabel→astra, roboflow→custom. "
-            "Or pass a raw Autolabel modelType, e.g. gpt-5.6-sol-boxes. "
-            "Example: --model sol  |  --models astra,custom  |  --model gpt-5.6-sol-boxes"
+            "Aliases: gpt-6-sol→sol, autolabel→astra, roboflow→custom. "
+            "Or pass a raw Autolabel modelType, e.g. gpt-6-sol-boxes. "
+            "Example: --model sol  |  --models astra,custom  |  --model gpt-6-sol-boxes"
         ),
     )
     sample = p.add_mutually_exclusive_group()

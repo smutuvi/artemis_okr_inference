@@ -59,7 +59,7 @@ python run.py --tasks flowers,pods --model astra --sample 20
 python run.py --tasks pods --model sol --sample 20 --visualize 5
 python run.py --tasks pods --model custom --sample 20 --visualize
 # raw Autolabel modelType also works:
-python run.py --tasks pods --model gpt-5.6-sol-boxes --sample 10 --visualize 2
+python run.py --tasks pods --model gpt-6-sol-boxes --sample 10 --visualize 2
 # aliases: --models sol  |  --models astra,custom
 ```
 
