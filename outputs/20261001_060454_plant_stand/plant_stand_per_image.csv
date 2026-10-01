@@ -1,0 +1,4 @@
+task,image_id,image_name,width,height,gt_count,gt_classes,custom_n_pred,custom_n_both,custom_n_only_gt,custom_n_only_pred,custom_precision_iou50,custom_recall_iou50,custom_mean_matched_iou,custom_pred_classes,custom_mean_score
+plant_stand,56,1ebd83fd-d130-485e-98a6-f531c33be565_jpg.rf.f4ae07698a1baeddc40136349616459d.jpg,5305,3149,27,bushbean,29,25,2,4,0.8620689655172413,0.9259259259259259,0.8098733650904484,bushbean,0.793416191791666
+plant_stand,72,moment_2_socioconomic_20240405_3a7cfcc2-2c03-47df-bd59-3022b4c65b97_1714121797706_jpg.rf.fdbbd95d350dd006eee4a7ffb3c6a5f3.jpg,3120,4160,21,bushbean,21,14,7,7,0.6666666666666666,0.6666666666666666,0.6559331016818959,bushbean,0.6162572872071039
+plant_stand,278,1707731198072_jpg.rf.59824e054e77eee9d62767db9b7980ed.jpg,3000,4000,45,bushbean,46,45,0,1,0.9782608695652174,1.0,0.7958819545356369,bushbean,0.8433032094136529
