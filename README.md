@@ -22,11 +22,11 @@ pip install -r requirements.txt
 # optional editable install for `okr-inference` console script:
 # pip install -e .
 
-export ROBOFLOW_API_KEY="your_private_api_key"
+cp .env.example .env   # then put your key in .env
 ```
 
-Copy `.env.example` if you prefer a local reminder file — the CLI reads
-`$ROBOFLOW_API_KEY` (or `--api-key`).
+The CLI reads the key from `--api-key`, then `$ROBOFLOW_API_KEY`, then
+`ROBOFLOW_API_KEY=...` in `.env` at the project root. `.env` is git-ignored.
 
 ## Tasks
 
@@ -34,7 +34,7 @@ Defined in [`config/tasks.yaml`](config/tasks.yaml):
 
 | Task | GT project | Classes | Custom model |
 |------|------------|---------|--------------|
-| `plant_stand` | `artemis_2_bushbean_bb_benchmark-hxtfg` / 3 | `bushbean` | `bushbean_stand-row_count_diversity-2-rfdetr-medium-t4` |
+| `plant_stand` | `artemis_2_bushbean_bb_benchmark-hxtfg` / 3 | `bushbean` | `cgiar-workspace/bushbean_stand-row_count_diversity-2-rfdetr-medium-t4` |
 | `flowers` | `artemis_2_bushbean_bb_benchmark2` / 3 | flower stages + `Plant-Bean` | `dup_merged_1_to_15_flower_inst_seg-mhpnh/44` |
 | `pods` | `artemis_2_bushbean_pod_benchmark` / 1 | `Fruit_pod` only | `artemis2_pod_segmentation_batch3-gd8ng/53` |
 
@@ -52,15 +52,12 @@ python run.py --list-tasks
 python run.py --tasks flowers,pods --sample 20
 ```
 
-### Only Astra, Sol, or custom
+### Only Astra or custom
 
 ```bash
 python run.py --tasks flowers,pods --model astra --sample 20
-python run.py --tasks pods --model sol --sample 20 --visualize 5
 python run.py --tasks pods --model custom --sample 20 --visualize
-# raw Autolabel modelType also works:
-python run.py --tasks pods --model gpt-6-sol-boxes --sample 10 --visualize 2
-# aliases: --models sol  |  --models astra,custom
+# aliases: --models astra,custom  |  --models all
 ```
 
 ### One task, all images
@@ -97,7 +94,7 @@ python -m okr_inference --tasks flowers --sample 5 --visualize
 | Flag | Default | Meaning |
 |------|---------|---------|
 | `--tasks` | `flowers,pods` | Comma list or `all` |
-| `--model` / `--models` | `all` | `astra`, `sol`, `custom`, lists, or raw Autolabel type |
+| `--model` / `--models` | `all` | `astra`, `custom`, lists, or raw Autolabel type |
 | `--sample N` | `20` | Seeded sample size per task |
 | `--all` | off | Use every image (overrides `--sample`) |
 | `--visualize [N]` | off (`0`) | Save playground panels for N images/model (`--visualize` alone ⇒ 1) |

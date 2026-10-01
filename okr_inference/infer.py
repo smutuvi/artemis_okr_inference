@@ -121,7 +121,7 @@ def infer_astra(
 
     def _once():
         r = requests.post(url, json=body, timeout=timeout)
-        print(f"      Astra HTTP {r.status_code}")
+        print(f"      Autolabel[{model_type}] HTTP {r.status_code}")
         if r.status_code in (429, 500, 502, 503, 504):
             r.raise_for_status()
         if not r.ok:
@@ -133,7 +133,7 @@ def infer_astra(
             print("      non-JSON:", r.text[:300])
             return []
 
-    result = _with_retries("Astra", _once, retries=retries)
+    result = _with_retries(f"Autolabel[{model_type}]", _once, retries=retries)
     return result if isinstance(result, list) else []
 
 
@@ -146,15 +146,27 @@ def infer_custom(
     timeout: int = 180,
     retries: int = 5,
 ) -> list[dict]:
-    url = (
-        f"https://serverless.roboflow.com/{model_id}"
-        f"?api_key={api_key}&confidence={confidence}"
-    )
+    """Run a Roboflow model on serverless.roboflow.com.
+
+    Sends the same request as inference_sdk's InferenceHTTPClient.infer with
+    api_key_transport="header": base64 image body + Bearer auth. Works for
+    both "project/<version>" and "workspace/model-name" IDs, without needing
+    the inference-sdk package.
+    """
+    url = f"https://serverless.roboflow.com/{model_id}"
+    label = f"Custom[{model_id}]"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+    params = {"confidence": confidence, "disable_active_learning": "true"}
 
     def _once():
-        with open(image_path, "rb") as f:
-            r = requests.post(url, files={"file": f}, timeout=timeout)
-        print(f"      Custom[{model_id}] HTTP {r.status_code}")
+        r = requests.post(
+            url, headers=headers, params=params,
+            data=file_b64(image_path), timeout=timeout,
+        )
+        print(f"      {label} HTTP {r.status_code}")
         if r.status_code in (429, 500, 502, 503, 504):
             r.raise_for_status()
         if not r.ok:
@@ -165,7 +177,9 @@ def infer_custom(
         except Exception:
             print("      non-JSON:", r.text[:300])
             return []
+        if isinstance(data, list):
+            data = data[0] if data else {}
         return [p for p in parse_boxes(data) if p["score"] >= confidence]
 
-    result = _with_retries(f"Custom[{model_id}]", _once, retries=retries)
+    result = _with_retries(label, _once, retries=retries)
     return result if isinstance(result, list) else []
