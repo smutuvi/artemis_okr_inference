@@ -32,7 +32,7 @@ tasks:
         label: Custom plant-stand RF-DETR
         provider: Roboflow Serverless
         kind: roboflow
-        model_id: bushbean_stand-row_count_diversity-2-rfdetr-medium-t4
+        model_id: cgiar-workspace/bushbean_stand-row_count_diversity-2-rfdetr-medium-t4
 
   flowers:
     gt_project: artemis_2_bushbean_bb_benchmark2

@@ -259,11 +259,34 @@ def build_task_specs(data: dict[str, Any], selected: list[str]) -> list[TaskSpec
     return out
 
 
+def load_dotenv_file(path: Path | None = None) -> None:
+    """Load KEY=VALUE lines from .env into os.environ (no extra dependency).
+
+    Looks in the project root by default. Existing environment variables win.
+    """
+    path = path or (PACKAGE_ROOT / ".env")
+    if not path.is_file():
+        return
+    for raw in path.read_text().splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        if line.startswith("export "):
+            line = line[len("export "):].strip()
+        k, v = line.split("=", 1)
+        k, v = k.strip(), v.strip()
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in "\"'":
+            v = v[1:-1]
+        os.environ.setdefault(k, v)
+
+
 def resolve_api_key(cli_value: str | None = None) -> str:
+    load_dotenv_file()
     key = (cli_value or os.environ.get("ROBOFLOW_API_KEY") or "").strip()
     if not key:
         raise ValueError(
-            "No Roboflow API key. Pass --api-key or set ROBOFLOW_API_KEY."
+            "No Roboflow API key. Pass --api-key, set ROBOFLOW_API_KEY, "
+            "or add ROBOFLOW_API_KEY=... to .env in the project root."
         )
     return key
 
