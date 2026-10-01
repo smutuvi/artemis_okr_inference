@@ -7,4 +7,3 @@ opencv-python-headless>=4.8
 pandas>=2.0
 PyYAML>=6.0
 numpy>=1.24
-inference-sdk>=1.7

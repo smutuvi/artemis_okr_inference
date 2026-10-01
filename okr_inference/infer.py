@@ -137,32 +137,6 @@ def infer_astra(
     return result if isinstance(result, list) else []
 
 
-def _status_code(err: Exception) -> int | None:
-    code = getattr(err, "status_code", None)
-    return code if isinstance(code, int) else None
-
-
-_CLIENTS: dict[tuple[str, float], Any] = {}
-
-
-def _inference_client(api_key: str, confidence: float):
-    """Cached Roboflow inference_sdk client (API key sent as a header)."""
-    from inference_sdk import InferenceConfiguration, InferenceHTTPClient
-
-    key = (api_key, confidence)
-    if key not in _CLIENTS:
-        _CLIENTS[key] = InferenceHTTPClient(
-            api_url="https://serverless.roboflow.com",
-            api_key=api_key,
-        ).configure(
-            InferenceConfiguration(
-                api_key_transport="header",
-                confidence_threshold=confidence,
-            )
-        )
-    return _CLIENTS[key]
-
-
 def infer_custom(
     *,
     api_key: str,
@@ -172,29 +146,38 @@ def infer_custom(
     timeout: int = 180,
     retries: int = 5,
 ) -> list[dict]:
-    """Run a Roboflow model via inference_sdk on serverless.roboflow.com.
+    """Run a Roboflow model on serverless.roboflow.com.
 
-    Works for both "project/<version>" and "workspace/model-name" IDs.
+    Sends the same request as inference_sdk's InferenceHTTPClient.infer with
+    api_key_transport="header": base64 image body + Bearer auth. Works for
+    both "project/<version>" and "workspace/model-name" IDs, without needing
+    the inference-sdk package.
     """
-    from inference_sdk.http.errors import HTTPCallErrorError
-
-    client = _inference_client(api_key, confidence)
+    url = f"https://serverless.roboflow.com/{model_id}"
     label = f"Custom[{model_id}]"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/x-www-form-urlencoded",
+    }
+    params = {"confidence": confidence, "disable_active_learning": "true"}
 
     def _once():
-        try:
-            data = client.infer(image_path, model_id=model_id)
-        except HTTPCallErrorError as e:
-            status = _status_code(e)
-            print(f"      {label} HTTP {status}")
-            if status in (429, 500, 502, 503, 504):
-                resp = requests.Response()
-                resp.status_code = status
-                raise requests.exceptions.HTTPError(str(e), response=resp) from e
-            print("      ", str(e)[:300])
+        r = requests.post(
+            url, headers=headers, params=params,
+            data=file_b64(image_path), timeout=timeout,
+        )
+        print(f"      {label} HTTP {r.status_code}")
+        if r.status_code in (429, 500, 502, 503, 504):
+            r.raise_for_status()
+        if not r.ok:
+            print("      ", r.text[:300])
             return []
-        print(f"      {label} OK")
-        if isinstance(data, list):  # batch-style response
+        try:
+            data = r.json()
+        except Exception:
+            print("      non-JSON:", r.text[:300])
+            return []
+        if isinstance(data, list):
             data = data[0] if data else {}
         return [p for p in parse_boxes(data) if p["score"] >= confidence]
 
