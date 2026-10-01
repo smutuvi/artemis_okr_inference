@@ -34,11 +34,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--models",
+        "--model",
+        dest="models",
         default="all",
         help=(
-            "Which model(s) to run per task: astra, custom, or both (all). "
-            "Aliases: autolabel→astra, roboflow→custom. "
-            "Example: --models astra  |  --models custom  |  --models astra,custom"
+            "Which model(s) to run: astra, sol, custom, comma list, or all. "
+            "Aliases: gpt-6-sol→sol, autolabel→astra, roboflow→custom. "
+            "Or pass a raw Autolabel modelType, e.g. gpt-6-sol-boxes. "
+            "Example: --model sol  |  --models astra,custom  |  --model gpt-6-sol-boxes"
         ),
     )
     sample = p.add_mutually_exclusive_group()
