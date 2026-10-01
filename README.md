@@ -34,7 +34,7 @@ Defined in [`config/tasks.yaml`](config/tasks.yaml):
 
 | Task | GT project | Classes | Custom model |
 |------|------------|---------|--------------|
-| `plant_stand` | `artemis_2_bushbean_bb_benchmark-hxtfg` / 3 | `bushbean` | `beanbush_plantstand_bb_344_2/6` |
+| `plant_stand` | `artemis_2_bushbean_bb_benchmark-hxtfg` / 3 | `bushbean` | `bushbean_stand-row_count_diversity-2-rfdetr-medium-t4` |
 | `flowers` | `artemis_2_bushbean_bb_benchmark2` / 3 | flower stages + `Plant-Bean` | `dup_merged_1_to_15_flower_inst_seg-mhpnh/44` |
 | `pods` | `artemis_2_bushbean_pod_benchmark` / 1 | `Fruit_pod` only | `artemis2_pod_segmentation_batch3-gd8ng/53` |
 

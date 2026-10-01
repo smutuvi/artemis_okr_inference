@@ -29,10 +29,10 @@ tasks:
         kind: autolabel
         model_type: gpt-6-sol-boxes
       - key: custom
-        label: Custom plant-stand v6
+        label: Custom plant-stand RF-DETR
         provider: Roboflow Serverless
         kind: roboflow
-        model_id: beanbush_plantstand_bb_344_2/6
+        model_id: bushbean_stand-row_count_diversity-2-rfdetr-medium-t4
 
   flowers:
     gt_project: artemis_2_bushbean_bb_benchmark2
