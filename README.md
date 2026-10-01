@@ -52,15 +52,12 @@ python run.py --list-tasks
 python run.py --tasks flowers,pods --sample 20
 ```
 
-### Only Astra, Sol, or custom
+### Only Astra or custom
 
 ```bash
 python run.py --tasks flowers,pods --model astra --sample 20
-python run.py --tasks pods --model sol --sample 20 --visualize 5
 python run.py --tasks pods --model custom --sample 20 --visualize
-# raw Autolabel modelType also works:
-python run.py --tasks pods --model gpt-6-sol-boxes --sample 10 --visualize 2
-# aliases: --models sol  |  --models astra,custom
+# aliases: --models astra,custom  |  --models all
 ```
 
 ### One task, all images
@@ -97,7 +94,7 @@ python -m okr_inference --tasks flowers --sample 5 --visualize
 | Flag | Default | Meaning |
 |------|---------|---------|
 | `--tasks` | `flowers,pods` | Comma list or `all` |
-| `--model` / `--models` | `all` | `astra`, `sol`, `custom`, lists, or raw Autolabel type |
+| `--model` / `--models` | `all` | `astra`, `custom`, lists, or raw Autolabel type |
 | `--sample N` | `20` | Seeded sample size per task |
 | `--all` | off | Use every image (overrides `--sample`) |
 | `--visualize [N]` | off (`0`) | Save playground panels for N images/model (`--visualize` alone ⇒ 1) |
