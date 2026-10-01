@@ -137,6 +137,32 @@ def infer_astra(
     return result if isinstance(result, list) else []
 
 
+def _status_code(err: Exception) -> int | None:
+    code = getattr(err, "status_code", None)
+    return code if isinstance(code, int) else None
+
+
+_CLIENTS: dict[tuple[str, float], Any] = {}
+
+
+def _inference_client(api_key: str, confidence: float):
+    """Cached Roboflow inference_sdk client (API key sent as a header)."""
+    from inference_sdk import InferenceConfiguration, InferenceHTTPClient
+
+    key = (api_key, confidence)
+    if key not in _CLIENTS:
+        _CLIENTS[key] = InferenceHTTPClient(
+            api_url="https://serverless.roboflow.com",
+            api_key=api_key,
+        ).configure(
+            InferenceConfiguration(
+                api_key_transport="header",
+                confidence_threshold=confidence,
+            )
+        )
+    return _CLIENTS[key]
+
+
 def infer_custom(
     *,
     api_key: str,
@@ -146,45 +172,31 @@ def infer_custom(
     timeout: int = 180,
     retries: int = 5,
 ) -> list[dict]:
-    # Two Roboflow model ID styles:
-    #   legacy "project/<version>"           -> multipart upload, api_key in query
-    #   new    "workspace/model-name"        -> base64 body, Bearer auth
-    versioned = model_id.rsplit("/", 1)[-1].isdigit()
-    url = f"https://serverless.roboflow.com/{model_id}"
+    """Run a Roboflow model via inference_sdk on serverless.roboflow.com.
 
-    def _post():
-        if versioned:
-            with open(image_path, "rb") as f:
-                return requests.post(
-                    url,
-                    params={"api_key": api_key, "confidence": confidence},
-                    files={"file": f},
-                    timeout=timeout,
-                )
-        return requests.post(
-            url,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            data=file_b64(image_path),
-            timeout=timeout,
-        )
+    Works for both "project/<version>" and "workspace/model-name" IDs.
+    """
+    from inference_sdk.http.errors import HTTPCallErrorError
+
+    client = _inference_client(api_key, confidence)
+    label = f"Custom[{model_id}]"
 
     def _once():
-        r = _post()
-        print(f"      Custom[{model_id}] HTTP {r.status_code}")
-        if r.status_code in (429, 500, 502, 503, 504):
-            r.raise_for_status()
-        if not r.ok:
-            print("      ", r.text[:300])
-            return []
         try:
-            data = r.json()
-        except Exception:
-            print("      non-JSON:", r.text[:300])
+            data = client.infer(image_path, model_id=model_id)
+        except HTTPCallErrorError as e:
+            status = _status_code(e)
+            print(f"      {label} HTTP {status}")
+            if status in (429, 500, 502, 503, 504):
+                resp = requests.Response()
+                resp.status_code = status
+                raise requests.exceptions.HTTPError(str(e), response=resp) from e
+            print("      ", str(e)[:300])
             return []
+        print(f"      {label} OK")
+        if isinstance(data, list):  # batch-style response
+            data = data[0] if data else {}
         return [p for p in parse_boxes(data) if p["score"] >= confidence]
 
-    result = _with_retries(f"Custom[{model_id}]", _once, retries=retries)
+    result = _with_retries(label, _once, retries=retries)
     return result if isinstance(result, list) else []
