@@ -104,6 +104,7 @@ python -m okr_inference --tasks flowers --sample 5 --visualize
 | `--match-iou` | `0.50` | IoU for match-map / micro precision-recall |
 | `--force-redownload` | off | Wipe cached GT folders and download again |
 | `--output-dir` | `outputs/` | CSV + viz root |
+| `--run-name NAME` | auto timestamp | Custom folder under `outputs/` (e.g. `my_plant_stand_run`) |
 | `--download-dir` | `roboflow_datasets/` | GT cache (reused across runs; skip re-download if present) |
 | `--api-key` | `$ROBOFLOW_API_KEY` | Roboflow key |
 

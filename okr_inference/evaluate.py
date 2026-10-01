@@ -429,6 +429,10 @@ def run_evaluation(cfg: RunConfig) -> Path:
         run_dir = Path(cfg.resume_dir)
         run_dir.mkdir(parents=True, exist_ok=True)
         print("Resuming into:", run_dir)
+    elif cfg.run_name:
+        run_dir = cfg.output_dir / cfg.run_name
+        run_dir.mkdir(parents=True, exist_ok=True)
+        print("Output dir:", run_dir)
     else:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         task_tag = "-".join(t.name for t in cfg.tasks) or "none"

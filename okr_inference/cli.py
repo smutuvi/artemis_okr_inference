@@ -85,6 +85,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to tasks YAML.",
     )
     p.add_argument("--output-dir", type=Path, default=None, help="Where to write CSVs/viz.")
+    p.add_argument(
+        "--run-name",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Custom folder name under --output-dir (e.g. plant_stand_custom_all). "
+            "Default is <timestamp>_<tasks>."
+        ),
+    )
     p.add_argument("--download-dir", type=Path, default=None, help="Where to cache GT downloads.")
     p.add_argument("--seed", type=int, default=None, help="Random seed for sampling.")
     p.add_argument("--match-iou", type=float, default=None, help="IoU for match-map / micro P-R.")
@@ -142,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
         custom_conf=args.custom_conf,
         force_redownload=args.force_redownload,
         resume_dir=args.resume,
+        run_name=args.run_name,
     )
     run_evaluation(cfg)
     return 0
