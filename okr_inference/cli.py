@@ -104,6 +104,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Delete matching local GT folders before downloading.",
     )
     p.add_argument(
+        "--split",
+        default="test",
+        choices=["test", "valid", "train"],
+        help="GT COCO split to evaluate on (default: test).",
+    )
+    p.add_argument(
         "--resume",
         type=Path,
         default=None,
@@ -152,6 +158,7 @@ def main(argv: list[str] | None = None) -> int:
         force_redownload=args.force_redownload,
         resume_dir=args.resume,
         run_name=args.run_name,
+        split=args.split,
     )
     run_evaluation(cfg)
     return 0

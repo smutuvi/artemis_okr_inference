@@ -82,6 +82,7 @@ class RunConfig:
     api_key: str = ""
     resume_dir: Path | None = None  # reuse this run folder and skip done images
     run_name: str | None = None  # custom folder name under output_dir
+    split: str = "test"  # GT COCO split: test | valid | train
 
 
 def load_tasks_yaml(path: Path | None = None) -> dict[str, Any]:
@@ -310,6 +311,7 @@ def build_run_config(
     force_redownload: bool | None = None,
     resume_dir: Path | None = None,
     run_name: str | None = None,
+    split: str | None = None,
 ) -> RunConfig:
     data = load_tasks_yaml(tasks_yaml)
     defaults = data.get("defaults") or {}
@@ -342,6 +344,11 @@ def build_run_config(
         if not name or name in (".", ".."):
             raise ValueError(f"Invalid --run-name: {run_name!r}")
 
+    split_name = (split if split is not None else defaults.get("split", "test"))
+    split_name = str(split_name).strip().lower() or "test"
+    if split_name not in ("test", "valid", "train"):
+        raise ValueError(f"--split must be test, valid, or train (got {split_name!r})")
+
     return RunConfig(
         workspace=data.get("workspace", "cgiar-workspace"),
         tasks=task_specs,
@@ -364,4 +371,5 @@ def build_run_config(
         api_key=resolve_api_key(api_key),
         resume_dir=resume,
         run_name=name,
+        split=split_name,
     )

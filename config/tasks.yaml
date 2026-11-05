@@ -11,6 +11,7 @@ defaults:
   random_seed: 42
   download_format: coco
   force_redownload: false
+  split: test  # evaluation uses the test split
 
 tasks:
   plant_stand:
