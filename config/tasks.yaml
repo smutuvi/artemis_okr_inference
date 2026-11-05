@@ -57,7 +57,6 @@ tasks:
     gt_version: 1
     classes:
       - Fruit_pod
-      - Plant_Bean
     models:
       - key: astra
         label: GPT-6 Astra
