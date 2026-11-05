@@ -1,0 +1,2 @@
+task,model_label,provider,AP_50,AP_50_95,AP_75,AR_maxDets100,expected_objects,predicted_objects,matched_both,micro_precision_iou50,micro_recall_iou50
+plant_stand,Custom plant-stand RF-DETR,Roboflow Serverless,0.6350950901967339,0.25528044380486836,0.16089624546231854,0.33413410026504253,17733,17641,12720,0.7210475596621506,0.7173067162916597
