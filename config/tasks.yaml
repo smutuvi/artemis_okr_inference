@@ -54,7 +54,7 @@ tasks:
 
   pods:
     gt_project: artemis_2_bushbean_pod_benchmark
-    gt_version: 1
+    gt_version: 2
     classes:
       - Fruit_pod
     models:
