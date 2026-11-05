@@ -36,7 +36,7 @@ Defined in [`config/tasks.yaml`](config/tasks.yaml):
 |------|------------|---------|--------------|
 | `plant_stand` | `artemis_2_bushbean_bb_benchmark-hxtfg` / 3 | `bushbean` | `cgiar-workspace/bushbean_stand-row_count_diversity-2-rfdetr-medium-t4` |
 | `flowers` | `artemis_2_bushbean_bb_benchmark2` / 3 | flower stages + `Plant-Bean` | `dup_merged_1_to_15_flower_inst_seg-mhpnh/44` |
-| `pods` | `artemis_2_bushbean_pod_benchmark` / 1 | `Fruit_pod` only | `artemis2_pod_segmentation_batch3-gd8ng/53` |
+| `pods` | `artemis_2_bushbean_pod_benchmark` / 1 | `Fruit_pod`, `Plant_Bean` | `artemis2_pod_segmentation_batch3-gd8ng/53` |
 
 Edit that YAML to add/change tasks or models. List names:
 
@@ -104,6 +104,8 @@ python -m okr_inference --tasks flowers --sample 5 --visualize
 | `--match-iou` | `0.50` | IoU for match-map / micro precision-recall |
 | `--force-redownload` | off | Wipe cached GT folders and download again |
 | `--output-dir` | `outputs/` | CSV + viz root |
+| `--run-name NAME` | auto timestamp | Custom folder under `outputs/` (e.g. `my_plant_stand_run`) |
+| `--split` | `test` | GT COCO split: `test` (default), `valid`, or `train` |
 | `--download-dir` | `roboflow_datasets/` | GT cache (reused across runs; skip re-download if present) |
 | `--api-key` | `$ROBOFLOW_API_KEY` | Roboflow key |
 

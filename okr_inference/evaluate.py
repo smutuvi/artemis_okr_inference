@@ -122,8 +122,17 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
         print(f"❌ GT download failed: {e}")
         return None
 
-    ann, img_dir, split = find_coco_split(ds_location)
+    try:
+        ann, img_dir, split = find_coco_split(
+            ds_location, preferred=cfg.split, require_preferred=True
+        )
+    except FileNotFoundError as e:
+        print(f"❌ {e}")
+        return None
     print("GT split:", split)
+    if split != "test":
+        print(f"  ⚠️ Evaluating on '{split}' (not test). Prefer --split test for final metrics.")
+
     coco = COCO(ann)
     name_to_id = resolve_cats(coco, task.classes)
     if not name_to_id:
@@ -429,6 +438,10 @@ def run_evaluation(cfg: RunConfig) -> Path:
         run_dir = Path(cfg.resume_dir)
         run_dir.mkdir(parents=True, exist_ok=True)
         print("Resuming into:", run_dir)
+    elif cfg.run_name:
+        run_dir = cfg.output_dir / cfg.run_name
+        run_dir.mkdir(parents=True, exist_ok=True)
+        print("Output dir:", run_dir)
     else:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         task_tag = "-".join(t.name for t in cfg.tasks) or "none"
@@ -443,6 +456,7 @@ def run_evaluation(cfg: RunConfig) -> Path:
         "Models:",
         {t.name: [m.key for m in t.models] for t in cfg.tasks},
     )
+    print("GT split:", cfg.split)
     print(
         "Sample:",
         "ALL" if cfg.sample_size is None else cfg.sample_size,
