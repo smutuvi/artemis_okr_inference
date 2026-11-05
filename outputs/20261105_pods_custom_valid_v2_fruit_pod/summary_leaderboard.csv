@@ -1,0 +1,2 @@
+task,model_label,provider,AP_50,AP_50_95,AP_75,AR_maxDets100,expected_objects,predicted_objects,matched_both,micro_precision_iou50,micro_recall_iou50
+pods,Custom pod v53,Roboflow Serverless,0.34936129034550784,0.24821536051812257,0.277402770069417,0.284055927623076,8511,3560,3114,0.8747191011235955,0.36587945012336975
