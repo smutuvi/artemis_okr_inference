@@ -46,18 +46,17 @@ python run.py --list-tasks
 
 ## Usage
 
-### Flowers + pods, 20 images each (default-ish)
+### All traits, custom only, 20 images each (default)
 
 ```bash
-python run.py --tasks flowers,pods --sample 20
+python run.py --sample 20
+# same as: --tasks plant_stand,flowers,pods --model custom --sample 20
 ```
 
-### Only Astra or custom
+### One task
 
 ```bash
-python run.py --tasks flowers,pods --model astra --sample 20
-python run.py --tasks pods --model custom --sample 20 --visualize
-# aliases: --models astra,custom  |  --models all
+python run.py --tasks pods --sample 20 --visualize
 ```
 
 ### One task, all images
@@ -93,8 +92,8 @@ python -m okr_inference --tasks flowers --sample 5 --visualize
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `--tasks` | `flowers,pods` | Comma list or `all` |
-| `--model` / `--models` | `all` | `astra`, `custom`, lists, or raw Autolabel type |
+| `--tasks` | `plant_stand,flowers,pods` | Comma list or `all` |
+| `--model` / `--models` | `custom` | `custom` (default), `astra`, lists, or raw Autolabel type |
 | `--sample N` | `20` | Seeded sample size per task |
 | `--all` | off | Use every image (overrides `--sample`) |
 | `--visualize [N]` | off (`0`) | Save playground panels for N images/model (`--visualize` alone ⇒ 1) |

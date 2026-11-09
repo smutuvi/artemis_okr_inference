@@ -26,22 +26,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--tasks",
-        default="flowers,pods",
+        default="plant_stand,flowers,pods",
         help=(
             f"Comma-separated task names, or 'all'. Available: {', '.join(names)}. "
-            "Example: flowers  |  flowers,pods  |  all"
+            "Example: flowers  |  plant_stand,flowers,pods  |  all"
         ),
     )
     p.add_argument(
         "--models",
         "--model",
         dest="models",
-        default="all",
+        default="custom",
         help=(
-            "Which model(s) to run: astra, sol, custom, comma list, or all. "
+            "Which model(s) to run: custom (default), astra, sol, comma list, or all. "
             "Aliases: gpt-6-sol→sol, autolabel→astra, roboflow→custom. "
             "Or pass a raw Autolabel modelType, e.g. gpt-6-sol-boxes. "
-            "Example: --model sol  |  --models astra,custom  |  --model gpt-6-sol-boxes"
+            "Example: --model custom  |  --models astra,custom"
         ),
     )
     sample = p.add_mutually_exclusive_group()
