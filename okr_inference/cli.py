@@ -120,6 +120,16 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     p.add_argument(
+        "--task-classes",
+        action="append",
+        default=None,
+        metavar="TASK=CLASS,...",
+        help=(
+            "Override GT classes for a task. Repeatable. "
+            "Example: --task-classes pods=Fruit_pod,Plant_Bean"
+        ),
+    )
+    p.add_argument(
         "--list-tasks",
         action="store_true",
         help="Print available task names from the YAML and exit.",
@@ -159,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         resume_dir=args.resume,
         run_name=args.run_name,
         split=args.split,
+        task_classes=args.task_classes,
     )
     run_evaluation(cfg)
     return 0

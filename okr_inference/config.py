@@ -233,6 +233,59 @@ def filter_task_models(tasks: list[TaskSpec], model_keys: list[str] | None) -> l
     return out
 
 
+def parse_task_class_overrides(items: list[str] | None) -> dict[str, list[str]]:
+    """Parse ``task=ClassA,ClassB`` entries into {task: [classes]}."""
+    if not items:
+        return {}
+    out: dict[str, list[str]] = {}
+    for raw in items:
+        s = (raw or "").strip()
+        if not s:
+            continue
+        if "=" not in s:
+            raise ValueError(
+                f"Invalid --task-classes entry {raw!r}. "
+                "Expected task=ClassA,ClassB (e.g. pods=Fruit_pod,Plant_Bean)."
+            )
+        task, _, classes_s = s.partition("=")
+        task = task.strip()
+        classes = [c.strip() for c in classes_s.split(",") if c.strip()]
+        if not task or not classes:
+            raise ValueError(
+                f"Invalid --task-classes entry {raw!r}. "
+                "Expected task=ClassA,ClassB (e.g. pods=Fruit_pod,Plant_Bean)."
+            )
+        out[task] = classes
+    return out
+
+
+def apply_task_class_overrides(
+    tasks: list[TaskSpec], overrides: dict[str, list[str]]
+) -> list[TaskSpec]:
+    if not overrides:
+        return tasks
+    known = {t.name for t in tasks}
+    unknown = sorted(set(overrides) - known)
+    if unknown:
+        raise ValueError(
+            f"--task-classes references unknown task(s) {unknown}. "
+            f"Selected tasks: {sorted(known)}"
+        )
+    out: list[TaskSpec] = []
+    for t in tasks:
+        classes = overrides.get(t.name)
+        out.append(
+            TaskSpec(
+                name=t.name,
+                gt_project=t.gt_project,
+                gt_version=t.gt_version,
+                classes=list(classes) if classes is not None else list(t.classes),
+                models=list(t.models),
+            )
+        )
+    return out
+
+
 def build_task_specs(data: dict[str, Any], selected: list[str]) -> list[TaskSpec]:
     tasks_cfg = data.get("tasks") or {}
     out: list[TaskSpec] = []
@@ -312,6 +365,7 @@ def build_run_config(
     resume_dir: Path | None = None,
     run_name: str | None = None,
     split: str | None = None,
+    task_classes: list[str] | None = None,
 ) -> RunConfig:
     data = load_tasks_yaml(tasks_yaml)
     defaults = data.get("defaults") or {}
@@ -326,6 +380,9 @@ def build_run_config(
         task_specs = inject_autolabel_model(task_specs, adhoc_type)
     else:
         task_specs = filter_task_models(task_specs, model_keys)
+    task_specs = apply_task_class_overrides(
+        task_specs, parse_task_class_overrides(task_classes)
+    )
 
     sample_size: int | None
     if all_images:
