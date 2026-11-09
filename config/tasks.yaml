@@ -1,16 +1,18 @@
-# Artemis OKR evaluation tasks (Astra Autolabel vs custom Roboflow models).
-# GPT-6 Sol is disabled for now (gpt-6-sol-boxes not available in workspace).
-# Select which to run via:  --tasks flowers,pods   or  --tasks all
-# Select models via:        --model astra  |  --models astra,custom  |  --models all
+# Artemis OKR evaluation tasks (custom Roboflow models).
+# Astra Autolabel disabled for now — re-add kind: autolabel entries if needed.
+# Select which to run via:  --tasks plant_stand,flowers,pods   or  --tasks all
+# Select models via:        --model custom  (default)
 
 workspace: cgiar-workspace
 
 defaults:
   match_iou: 0.50
-  custom_conf: 0.40
+  # Production-like floor; use --custom-conf to override per run
+  custom_conf: 0.01
   random_seed: 42
   download_format: coco
   force_redownload: false
+  split: test  # evaluation uses the test split
 
 tasks:
   plant_stand:
@@ -19,11 +21,6 @@ tasks:
     classes:
       - bushbean
     models:
-      - key: astra
-        label: GPT-6 Astra
-        provider: Roboflow Autolabel
-        kind: autolabel
-        model_type: gpt-6-astra-boxes
       - key: custom
         label: Custom plant-stand RF-DETR
         provider: Roboflow Serverless
@@ -40,29 +37,19 @@ tasks:
       - Flower-open
       - Plant-Bean
     models:
-      - key: astra
-        label: GPT-6 Astra
-        provider: Roboflow Autolabel
-        kind: autolabel
-        model_type: gpt-6-astra-boxes
       - key: custom
-        label: Custom flower v44
+        label: Custom flower v8
         provider: Roboflow Serverless
         kind: roboflow
-        model_id: dup_merged_1_to_15_flower_inst_seg-mhpnh/44
+        model_id: dup_merged_1_to_15_flower_inst_seg-mhpnh/8
 
   pods:
+    # Source of truth for pod GT (v2 = 713-image eval set)
     gt_project: artemis_2_bushbean_pod_benchmark
-    gt_version: 1
-    # Evaluate pods only; Plant_Bean often dominates mAP noise vs Fruit_pod
+    gt_version: 2
     classes:
       - Fruit_pod
     models:
-      - key: astra
-        label: GPT-6 Astra
-        provider: Roboflow Autolabel
-        kind: autolabel
-        model_type: gpt-6-astra-boxes
       - key: custom
         label: Custom pod v53
         provider: Roboflow Serverless

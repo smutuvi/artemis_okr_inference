@@ -26,22 +26,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--tasks",
-        default="flowers,pods",
+        default="plant_stand,flowers,pods",
         help=(
             f"Comma-separated task names, or 'all'. Available: {', '.join(names)}. "
-            "Example: flowers  |  flowers,pods  |  all"
+            "Example: flowers  |  plant_stand,flowers,pods  |  all"
         ),
     )
     p.add_argument(
         "--models",
         "--model",
         dest="models",
-        default="all",
+        default="custom",
         help=(
-            "Which model(s) to run: astra, sol, custom, comma list, or all. "
+            "Which model(s) to run: custom (default), astra, sol, comma list, or all. "
             "Aliases: gpt-6-sol→sol, autolabel→astra, roboflow→custom. "
             "Or pass a raw Autolabel modelType, e.g. gpt-6-sol-boxes. "
-            "Example: --model sol  |  --models astra,custom  |  --model gpt-6-sol-boxes"
+            "Example: --model custom  |  --models astra,custom"
         ),
     )
     sample = p.add_mutually_exclusive_group()
@@ -85,6 +85,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Path to tasks YAML.",
     )
     p.add_argument("--output-dir", type=Path, default=None, help="Where to write CSVs/viz.")
+    p.add_argument(
+        "--run-name",
+        default=None,
+        metavar="NAME",
+        help=(
+            "Custom folder name under --output-dir (e.g. plant_stand_custom_all). "
+            "Default is <timestamp>_<tasks>."
+        ),
+    )
     p.add_argument("--download-dir", type=Path, default=None, help="Where to cache GT downloads.")
     p.add_argument("--seed", type=int, default=None, help="Random seed for sampling.")
     p.add_argument("--match-iou", type=float, default=None, help="IoU for match-map / micro P-R.")
@@ -95,6 +104,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Delete matching local GT folders before downloading.",
     )
     p.add_argument(
+        "--split",
+        default="test",
+        choices=["test", "valid", "train"],
+        help="GT COCO split to evaluate on (default: test).",
+    )
+    p.add_argument(
         "--resume",
         type=Path,
         default=None,
@@ -102,6 +117,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Continue an interrupted run in this output folder "
             "(skips images already saved under checkpoints/*.jsonl)."
+        ),
+    )
+    p.add_argument(
+        "--task-classes",
+        action="append",
+        default=None,
+        metavar="TASK=CLASS,...",
+        help=(
+            "Override GT classes for a task. Repeatable. "
+            "Example: --task-classes pods=Fruit_pod,Plant_Bean"
         ),
     )
     p.add_argument(
@@ -142,6 +167,9 @@ def main(argv: list[str] | None = None) -> int:
         custom_conf=args.custom_conf,
         force_redownload=args.force_redownload,
         resume_dir=args.resume,
+        run_name=args.run_name,
+        split=args.split,
+        task_classes=args.task_classes,
     )
     run_evaluation(cfg)
     return 0

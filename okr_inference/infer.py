@@ -22,6 +22,37 @@ def file_b64(path: str) -> str:
         return base64.b64encode(f.read()).decode()
 
 
+def _points_to_segmentation(points: Any) -> list[float] | None:
+    """Flatten Roboflow [{x,y}, ...] points into a COCO polygon [x,y,...]."""
+    if not isinstance(points, list) or len(points) < 3:
+        return None
+    flat: list[float] = []
+    for pt in points:
+        if isinstance(pt, dict) and "x" in pt and "y" in pt:
+            flat.extend([float(pt["x"]), float(pt["y"])])
+        elif isinstance(pt, (list, tuple)) and len(pt) >= 2:
+            flat.extend([float(pt[0]), float(pt[1])])
+        else:
+            return None
+    return flat if len(flat) >= 6 else None
+
+
+def _extract_mask_fields(p: dict) -> dict[str, Any]:
+    """Keep instance-mask fields from a Roboflow prediction when present."""
+    extra: dict[str, Any] = {}
+    points = p.get("points")
+    if points is not None:
+        extra["points"] = points
+        seg = _points_to_segmentation(points)
+        if seg is not None:
+            extra["segmentation"] = [seg]
+    if p.get("mask") is not None:
+        extra["mask"] = p["mask"]
+    if p.get("segmentation") is not None and "segmentation" not in extra:
+        extra["segmentation"] = p["segmentation"]
+    return extra
+
+
 def parse_boxes(payload: Any) -> list[dict]:
     if not isinstance(payload, dict):
         return []
@@ -51,13 +82,13 @@ def parse_boxes(payload: Any) -> list[dict]:
             x, y, w, h = map(float, p["bbox"])
         else:
             continue
-        out.append(
-            {
-                "bbox": [x, y, w, h],
-                "score": float(p.get("confidence", p.get("score", 1.0))),
-                "class": p.get("class") or p.get("label") or "object",
-            }
-        )
+        det = {
+            "bbox": [x, y, w, h],
+            "score": float(p.get("confidence", p.get("score", 1.0))),
+            "class": p.get("class") or p.get("label") or "object",
+        }
+        det.update(_extract_mask_fields(p))
+        out.append(det)
     return out
 
 
@@ -142,7 +173,7 @@ def infer_custom(
     api_key: str,
     model_id: str,
     image_path: str,
-    confidence: float = 0.40,
+    confidence: float = 0.01,
     timeout: int = 180,
     retries: int = 5,
 ) -> list[dict]:

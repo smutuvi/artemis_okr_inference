@@ -14,9 +14,41 @@ from roboflow import Roboflow
 from okr_inference.config import TaskSpec
 
 
-def find_coco_split(dataset_location: str | Path) -> tuple[str, str, str]:
+def _list_named_splits(dataset_location: str) -> list[str]:
+    found = []
+    for split in ("test", "valid", "train"):
+        p = os.path.join(dataset_location, split, "_annotations.coco.json")
+        if os.path.exists(p):
+            found.append(split)
+    return found
+
+
+def find_coco_split(
+    dataset_location: str | Path,
+    *,
+    preferred: str = "test",
+    require_preferred: bool = True,
+) -> tuple[str, str, str]:
+    """Locate a COCO split. Evaluation defaults to test and fails if missing."""
     dataset_location = str(dataset_location)
-    for split in ("valid", "test", "train"):
+    preferred = (preferred or "test").strip().lower()
+    available = _list_named_splits(dataset_location)
+
+    if preferred:
+        p = os.path.join(dataset_location, preferred, "_annotations.coco.json")
+        if os.path.exists(p):
+            return p, os.path.join(dataset_location, preferred), preferred
+        if require_preferred:
+            raise FileNotFoundError(
+                f"Required GT split '{preferred}' not found under {dataset_location}. "
+                f"Available splits: {available or 'none'}. "
+                f"Re-export the Roboflow version with a test split, or pass --split {{valid,train}}."
+            )
+
+    # Fallback order when preferred is not required
+    for split in ("test", "valid", "train"):
+        if split == preferred:
+            continue
         p = os.path.join(dataset_location, split, "_annotations.coco.json")
         if os.path.exists(p):
             return p, os.path.join(dataset_location, split), split
@@ -66,7 +98,8 @@ def find_cached_dataset(download_dir: Path, project_id: str, version: int) -> Pa
             if not base.endswith(ver):
                 continue
         try:
-            find_coco_split(path)
+            # Cache check: any split is enough to treat the download as present
+            find_coco_split(path, preferred="test", require_preferred=False)
         except FileNotFoundError:
             continue
         matches.append(path)

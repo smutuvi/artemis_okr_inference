@@ -17,7 +17,7 @@ from okr_inference.coco_io import download_gt, find_coco_split
 from okr_inference.config import ModelSpec, RunConfig, TaskSpec
 from okr_inference.infer import infer_astra, infer_custom
 from okr_inference.metrics import (
-    coco_eval_full,
+    coco_eval_bbox_and_segm,
     map_pred_classes,
     norm_name,
     per_image_match_stats,
@@ -122,8 +122,17 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
         print(f"❌ GT download failed: {e}")
         return None
 
-    ann, img_dir, split = find_coco_split(ds_location)
+    try:
+        ann, img_dir, split = find_coco_split(
+            ds_location, preferred=cfg.split, require_preferred=True
+        )
+    except FileNotFoundError as e:
+        print(f"❌ {e}")
+        return None
     print("GT split:", split)
+    if split != "test":
+        print(f"  ⚠️ Evaluating on '{split}' (not test). Prefer --split test for final metrics.")
+
     coco = COCO(ann)
     name_to_id = resolve_cats(coco, task.classes)
     if not name_to_id:
@@ -264,7 +273,11 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
                     "category_id": id_by_norm[norm_name(p["class"])],
                     "bbox": p["bbox"],
                     "score": p["score"],
+                    "class": p["class"],
                 }
+                for mask_key in ("points", "segmentation", "mask"):
+                    if p.get(mask_key) is not None:
+                        det[mask_key] = p[mask_key]
                 model_dets[k].append(det)
                 dets_this[k].append(det)
 
@@ -285,6 +298,41 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
     df_img.to_csv(img_csv, index=False)
     print(f"\n📄 Wrote {img_csv}")
 
+    # Persist full preds (incl. instance masks) for flower/pod association analysis
+    if task.name in ("flowers", "pods"):
+        pred_path = run_dir / f"{task.name}_predictions_with_masks.jsonl"
+        with open(pred_path, "w") as f:
+            for k, dets in model_dets.items():
+                by_image: dict[int, list] = {}
+                for d in dets:
+                    by_image.setdefault(int(d["image_id"]), []).append(d)
+                for iid, dets_i in by_image.items():
+                    info = coco.loadImgs(iid)[0]
+                    f.write(
+                        json.dumps(
+                            {
+                                "task": task.name,
+                                "model_key": k,
+                                "image_id": iid,
+                                "image_name": info["file_name"],
+                                "width": info.get("width"),
+                                "height": info.get("height"),
+                                "predictions": dets_i,
+                            }
+                        )
+                        + "\n"
+                    )
+        n_with_mask = sum(
+            1
+            for dets in model_dets.values()
+            for d in dets
+            if d.get("points") is not None or d.get("segmentation") is not None or d.get("mask") is not None
+        )
+        print(
+            f"📄 Wrote {pred_path}  "
+            f"({n_with_mask}/{sum(len(v) for v in model_dets.values())} preds have masks)"
+        )
+
     expected_total = int(df_img["gt_count"].fillna(0).sum()) if len(df_img) else 0
     model_rows = []
     results = {
@@ -295,11 +343,19 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
     }
 
     viz_dir = run_dir / "visualizations" / task.name
+    run_segm = task.name in ("flowers", "pods")
     for m in task.models:
         key = m.key
-        coco_stats = coco_eval_full(coco, sample_ids, name_to_id, model_dets[key])
+        coco_stats = coco_eval_bbox_and_segm(
+            coco,
+            sample_ids,
+            name_to_id,
+            model_dets[key],
+            run_segm=run_segm,
+        )
         pred_total = len(model_dets[key])
         map50 = coco_stats.get("AP_50")
+        map50_segm = coco_stats.get("AP_50_segm")
 
         both_sum = int(df_img[f"{key}_n_both"].fillna(0).sum()) if len(df_img) else 0
         only_gt_sum = int(df_img[f"{key}_n_only_gt"].fillna(0).sum()) if len(df_img) else 0
@@ -332,8 +388,11 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
         model_rows.append(mrow)
         results["models"][key] = mrow
 
+        segm_bit = (
+            f"  mask_mAP@50={map50_segm}" if map50_segm is not None else ""
+        )
         print(
-            f"\n[{task.name}] {m.label}: mAP@50={map50}  "
+            f"\n[{task.name}] {m.label}: bbox_mAP@50={map50}{segm_bit}  "
             f"expected={expected_total} predicted={pred_total}"
         )
 
@@ -379,6 +438,10 @@ def write_summary(all_results: list[dict], run_dir: Path) -> pd.DataFrame | None
         "AP_small", "AP_medium", "AP_large",
         "AR_maxDets1", "AR_maxDets10", "AR_maxDets100",
         "AR_small", "AR_medium", "AR_large",
+        "AP_50_95_segm", "AP_50_segm", "AP_75_segm",
+        "AP_small_segm", "AP_medium_segm", "AP_large_segm",
+        "AR_maxDets1_segm", "AR_maxDets10_segm", "AR_maxDets100_segm",
+        "AR_small_segm", "AR_medium_segm", "AR_large_segm",
         "gt_project", "gt_version", "sample_size", "random_seed",
         "match_iou", "custom_conf",
     ]
@@ -391,14 +454,14 @@ def write_summary(all_results: list[dict], run_dir: Path) -> pd.DataFrame | None
     df_summary.to_csv(summary_csv, index=False)
     print(f"\n📄 Wrote {summary_csv}")
 
-    board = df_summary[
-        [
-            "task", "model_label", "provider",
-            "AP_50", "AP_50_95", "AP_75", "AR_maxDets100",
-            "expected_objects", "predicted_objects",
-            "matched_both", "micro_precision_iou50", "micro_recall_iou50",
-        ]
-    ].copy()
+    board_cols = [
+        "task", "model_label", "provider",
+        "AP_50", "AP_50_95", "AP_75", "AR_maxDets100",
+        "AP_50_segm", "AP_50_95_segm", "AP_75_segm", "AR_maxDets100_segm",
+        "expected_objects", "predicted_objects",
+        "matched_both", "micro_precision_iou50", "micro_recall_iou50",
+    ]
+    board = df_summary[[c for c in board_cols if c in df_summary.columns]].copy()
     board_csv = run_dir / "summary_leaderboard.csv"
     board.to_csv(board_csv, index=False)
     print(f"📄 Wrote {board_csv}")
@@ -408,18 +471,23 @@ def write_summary(all_results: list[dict], run_dir: Path) -> pd.DataFrame | None
     print("#" * 72)
     display_cols = [
         "task", "model_label", "AP_50", "AP_50_95", "AP_75",
+        "AP_50_segm", "AP_50_95_segm",
         "expected_objects", "predicted_objects", "matched_both",
         "micro_precision_iou50", "micro_recall_iou50",
     ]
+    display_cols = [c for c in display_cols if c in df_summary.columns]
     print(df_summary[display_cols].to_string(index=False, float_format=lambda x: f"{x:.3f}"))
 
-    print("\n# Best AP@50 per task")
+    print("\n# Best bbox AP@50 per task")
     for task_name, g in df_summary.groupby("task"):
         if g["AP_50"].notna().any():
             best = g.loc[g["AP_50"].idxmax()]
+            extra = ""
+            if "AP_50_segm" in g.columns and pd.notna(best.get("AP_50_segm")):
+                extra = f"  mask_AP@50={best['AP_50_segm']:.3f}"
             print(
-                f"  {task_name}: {best['model_label']}  AP@50={best['AP_50']:.3f}  "
-                f"AP@50:95={best['AP_50_95']:.3f}"
+                f"  {task_name}: {best['model_label']}  bbox_AP@50={best['AP_50']:.3f}  "
+                f"bbox_AP@50:95={best['AP_50_95']:.3f}{extra}"
             )
     return df_summary
 
@@ -429,6 +497,10 @@ def run_evaluation(cfg: RunConfig) -> Path:
         run_dir = Path(cfg.resume_dir)
         run_dir.mkdir(parents=True, exist_ok=True)
         print("Resuming into:", run_dir)
+    elif cfg.run_name:
+        run_dir = cfg.output_dir / cfg.run_name
+        run_dir.mkdir(parents=True, exist_ok=True)
+        print("Output dir:", run_dir)
     else:
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         task_tag = "-".join(t.name for t in cfg.tasks) or "none"
@@ -443,6 +515,7 @@ def run_evaluation(cfg: RunConfig) -> Path:
         "Models:",
         {t.name: [m.key for m in t.models] for t in cfg.tasks},
     )
+    print("GT split:", cfg.split)
     print(
         "Sample:",
         "ALL" if cfg.sample_size is None else cfg.sample_size,

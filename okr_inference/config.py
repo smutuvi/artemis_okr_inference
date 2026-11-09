@@ -70,7 +70,7 @@ class RunConfig:
     workspace: str
     tasks: list[TaskSpec]
     match_iou: float = 0.50
-    custom_conf: float = 0.40
+    custom_conf: float = 0.01
     random_seed: int = 42
     download_format: str = "coco"
     force_redownload: bool = False
@@ -81,6 +81,8 @@ class RunConfig:
     download_dir: Path = field(default_factory=lambda: DEFAULT_DOWNLOAD_DIR)
     api_key: str = ""
     resume_dir: Path | None = None  # reuse this run folder and skip done images
+    run_name: str | None = None  # custom folder name under output_dir
+    split: str = "test"  # GT COCO split: test | valid | train
 
 
 def load_tasks_yaml(path: Path | None = None) -> dict[str, Any]:
@@ -231,6 +233,59 @@ def filter_task_models(tasks: list[TaskSpec], model_keys: list[str] | None) -> l
     return out
 
 
+def parse_task_class_overrides(items: list[str] | None) -> dict[str, list[str]]:
+    """Parse ``task=ClassA,ClassB`` entries into {task: [classes]}."""
+    if not items:
+        return {}
+    out: dict[str, list[str]] = {}
+    for raw in items:
+        s = (raw or "").strip()
+        if not s:
+            continue
+        if "=" not in s:
+            raise ValueError(
+                f"Invalid --task-classes entry {raw!r}. "
+                "Expected task=ClassA,ClassB (e.g. pods=Fruit_pod,Plant_Bean)."
+            )
+        task, _, classes_s = s.partition("=")
+        task = task.strip()
+        classes = [c.strip() for c in classes_s.split(",") if c.strip()]
+        if not task or not classes:
+            raise ValueError(
+                f"Invalid --task-classes entry {raw!r}. "
+                "Expected task=ClassA,ClassB (e.g. pods=Fruit_pod,Plant_Bean)."
+            )
+        out[task] = classes
+    return out
+
+
+def apply_task_class_overrides(
+    tasks: list[TaskSpec], overrides: dict[str, list[str]]
+) -> list[TaskSpec]:
+    if not overrides:
+        return tasks
+    known = {t.name for t in tasks}
+    unknown = sorted(set(overrides) - known)
+    if unknown:
+        raise ValueError(
+            f"--task-classes references unknown task(s) {unknown}. "
+            f"Selected tasks: {sorted(known)}"
+        )
+    out: list[TaskSpec] = []
+    for t in tasks:
+        classes = overrides.get(t.name)
+        out.append(
+            TaskSpec(
+                name=t.name,
+                gt_project=t.gt_project,
+                gt_version=t.gt_version,
+                classes=list(classes) if classes is not None else list(t.classes),
+                models=list(t.models),
+            )
+        )
+    return out
+
+
 def build_task_specs(data: dict[str, Any], selected: list[str]) -> list[TaskSpec]:
     tasks_cfg = data.get("tasks") or {}
     out: list[TaskSpec] = []
@@ -308,6 +363,9 @@ def build_run_config(
     custom_conf: float | None = None,
     force_redownload: bool | None = None,
     resume_dir: Path | None = None,
+    run_name: str | None = None,
+    split: str | None = None,
+    task_classes: list[str] | None = None,
 ) -> RunConfig:
     data = load_tasks_yaml(tasks_yaml)
     defaults = data.get("defaults") or {}
@@ -322,6 +380,9 @@ def build_run_config(
         task_specs = inject_autolabel_model(task_specs, adhoc_type)
     else:
         task_specs = filter_task_models(task_specs, model_keys)
+    task_specs = apply_task_class_overrides(
+        task_specs, parse_task_class_overrides(task_classes)
+    )
 
     sample_size: int | None
     if all_images:
@@ -333,12 +394,24 @@ def build_run_config(
     if resume is not None and not resume.is_dir():
         raise ValueError(f"--resume path is not a directory: {resume}")
 
+    name = (run_name or "").strip() or None
+    if name is not None:
+        # Keep it a single path segment (no nested paths / traversal)
+        name = Path(name).name
+        if not name or name in (".", ".."):
+            raise ValueError(f"Invalid --run-name: {run_name!r}")
+
+    split_name = (split if split is not None else defaults.get("split", "test"))
+    split_name = str(split_name).strip().lower() or "test"
+    if split_name not in ("test", "valid", "train"):
+        raise ValueError(f"--split must be test, valid, or train (got {split_name!r})")
+
     return RunConfig(
         workspace=data.get("workspace", "cgiar-workspace"),
         tasks=task_specs,
         match_iou=float(match_iou if match_iou is not None else defaults.get("match_iou", 0.50)),
         custom_conf=float(
-            custom_conf if custom_conf is not None else defaults.get("custom_conf", 0.40)
+            custom_conf if custom_conf is not None else defaults.get("custom_conf", 0.01)
         ),
         random_seed=int(seed if seed is not None else defaults.get("random_seed", 42)),
         download_format=str(defaults.get("download_format", "coco")),
@@ -354,4 +427,6 @@ def build_run_config(
         download_dir=Path(download_dir or DEFAULT_DOWNLOAD_DIR),
         api_key=resolve_api_key(api_key),
         resume_dir=resume,
+        run_name=name,
+        split=split_name,
     )
