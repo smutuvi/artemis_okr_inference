@@ -70,7 +70,7 @@ class RunConfig:
     workspace: str
     tasks: list[TaskSpec]
     match_iou: float = 0.50
-    custom_conf: float = 0.40
+    custom_conf: float = 0.01
     random_seed: int = 42
     download_format: str = "coco"
     force_redownload: bool = False
@@ -354,7 +354,7 @@ def build_run_config(
         tasks=task_specs,
         match_iou=float(match_iou if match_iou is not None else defaults.get("match_iou", 0.50)),
         custom_conf=float(
-            custom_conf if custom_conf is not None else defaults.get("custom_conf", 0.40)
+            custom_conf if custom_conf is not None else defaults.get("custom_conf", 0.01)
         ),
         random_seed=int(seed if seed is not None else defaults.get("random_seed", 42)),
         download_format=str(defaults.get("download_format", "coco")),

@@ -110,7 +110,17 @@ def coco_eval_full(
     empty = {n: None for n in COCO_STAT_NAMES}
     if not dets:
         return empty
-    coco_dt = coco_gt.loadRes(copy.deepcopy(dets))
+    # Bbox eval only — drop mask/class extras retained for association analysis
+    coco_dets = [
+        {
+            "image_id": d["image_id"],
+            "category_id": d["category_id"],
+            "bbox": d["bbox"],
+            "score": d["score"],
+        }
+        for d in dets
+    ]
+    coco_dt = coco_gt.loadRes(copy.deepcopy(coco_dets))
     ev = COCOeval(coco_gt, coco_dt, "bbox")
     ev.params.imgIds = sample_ids
     ev.params.catIds = list(name_to_id.values())

@@ -273,7 +273,11 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
                     "category_id": id_by_norm[norm_name(p["class"])],
                     "bbox": p["bbox"],
                     "score": p["score"],
+                    "class": p["class"],
                 }
+                for mask_key in ("points", "segmentation", "mask"):
+                    if p.get(mask_key) is not None:
+                        det[mask_key] = p[mask_key]
                 model_dets[k].append(det)
                 dets_this[k].append(det)
 
@@ -293,6 +297,41 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
     img_csv = run_dir / f"{task.name}_per_image.csv"
     df_img.to_csv(img_csv, index=False)
     print(f"\n📄 Wrote {img_csv}")
+
+    # Persist full preds (incl. instance masks) for flower/pod association analysis
+    if task.name in ("flowers", "pods"):
+        pred_path = run_dir / f"{task.name}_predictions_with_masks.jsonl"
+        with open(pred_path, "w") as f:
+            for k, dets in model_dets.items():
+                by_image: dict[int, list] = {}
+                for d in dets:
+                    by_image.setdefault(int(d["image_id"]), []).append(d)
+                for iid, dets_i in by_image.items():
+                    info = coco.loadImgs(iid)[0]
+                    f.write(
+                        json.dumps(
+                            {
+                                "task": task.name,
+                                "model_key": k,
+                                "image_id": iid,
+                                "image_name": info["file_name"],
+                                "width": info.get("width"),
+                                "height": info.get("height"),
+                                "predictions": dets_i,
+                            }
+                        )
+                        + "\n"
+                    )
+        n_with_mask = sum(
+            1
+            for dets in model_dets.values()
+            for d in dets
+            if d.get("points") is not None or d.get("segmentation") is not None or d.get("mask") is not None
+        )
+        print(
+            f"📄 Wrote {pred_path}  "
+            f"({n_with_mask}/{sum(len(v) for v in model_dets.values())} preds have masks)"
+        )
 
     expected_total = int(df_img["gt_count"].fillna(0).sum()) if len(df_img) else 0
     model_rows = []
