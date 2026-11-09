@@ -17,7 +17,7 @@ from okr_inference.coco_io import download_gt, find_coco_split
 from okr_inference.config import ModelSpec, RunConfig, TaskSpec
 from okr_inference.infer import infer_astra, infer_custom
 from okr_inference.metrics import (
-    coco_eval_full,
+    coco_eval_bbox_and_segm,
     map_pred_classes,
     norm_name,
     per_image_match_stats,
@@ -343,11 +343,19 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
     }
 
     viz_dir = run_dir / "visualizations" / task.name
+    run_segm = task.name in ("flowers", "pods")
     for m in task.models:
         key = m.key
-        coco_stats = coco_eval_full(coco, sample_ids, name_to_id, model_dets[key])
+        coco_stats = coco_eval_bbox_and_segm(
+            coco,
+            sample_ids,
+            name_to_id,
+            model_dets[key],
+            run_segm=run_segm,
+        )
         pred_total = len(model_dets[key])
         map50 = coco_stats.get("AP_50")
+        map50_segm = coco_stats.get("AP_50_segm")
 
         both_sum = int(df_img[f"{key}_n_both"].fillna(0).sum()) if len(df_img) else 0
         only_gt_sum = int(df_img[f"{key}_n_only_gt"].fillna(0).sum()) if len(df_img) else 0
@@ -380,8 +388,11 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
         model_rows.append(mrow)
         results["models"][key] = mrow
 
+        segm_bit = (
+            f"  mask_mAP@50={map50_segm}" if map50_segm is not None else ""
+        )
         print(
-            f"\n[{task.name}] {m.label}: mAP@50={map50}  "
+            f"\n[{task.name}] {m.label}: bbox_mAP@50={map50}{segm_bit}  "
             f"expected={expected_total} predicted={pred_total}"
         )
 
@@ -427,6 +438,10 @@ def write_summary(all_results: list[dict], run_dir: Path) -> pd.DataFrame | None
         "AP_small", "AP_medium", "AP_large",
         "AR_maxDets1", "AR_maxDets10", "AR_maxDets100",
         "AR_small", "AR_medium", "AR_large",
+        "AP_50_95_segm", "AP_50_segm", "AP_75_segm",
+        "AP_small_segm", "AP_medium_segm", "AP_large_segm",
+        "AR_maxDets1_segm", "AR_maxDets10_segm", "AR_maxDets100_segm",
+        "AR_small_segm", "AR_medium_segm", "AR_large_segm",
         "gt_project", "gt_version", "sample_size", "random_seed",
         "match_iou", "custom_conf",
     ]
@@ -439,14 +454,14 @@ def write_summary(all_results: list[dict], run_dir: Path) -> pd.DataFrame | None
     df_summary.to_csv(summary_csv, index=False)
     print(f"\n📄 Wrote {summary_csv}")
 
-    board = df_summary[
-        [
-            "task", "model_label", "provider",
-            "AP_50", "AP_50_95", "AP_75", "AR_maxDets100",
-            "expected_objects", "predicted_objects",
-            "matched_both", "micro_precision_iou50", "micro_recall_iou50",
-        ]
-    ].copy()
+    board_cols = [
+        "task", "model_label", "provider",
+        "AP_50", "AP_50_95", "AP_75", "AR_maxDets100",
+        "AP_50_segm", "AP_50_95_segm", "AP_75_segm", "AR_maxDets100_segm",
+        "expected_objects", "predicted_objects",
+        "matched_both", "micro_precision_iou50", "micro_recall_iou50",
+    ]
+    board = df_summary[[c for c in board_cols if c in df_summary.columns]].copy()
     board_csv = run_dir / "summary_leaderboard.csv"
     board.to_csv(board_csv, index=False)
     print(f"📄 Wrote {board_csv}")
@@ -456,18 +471,23 @@ def write_summary(all_results: list[dict], run_dir: Path) -> pd.DataFrame | None
     print("#" * 72)
     display_cols = [
         "task", "model_label", "AP_50", "AP_50_95", "AP_75",
+        "AP_50_segm", "AP_50_95_segm",
         "expected_objects", "predicted_objects", "matched_both",
         "micro_precision_iou50", "micro_recall_iou50",
     ]
+    display_cols = [c for c in display_cols if c in df_summary.columns]
     print(df_summary[display_cols].to_string(index=False, float_format=lambda x: f"{x:.3f}"))
 
-    print("\n# Best AP@50 per task")
+    print("\n# Best bbox AP@50 per task")
     for task_name, g in df_summary.groupby("task"):
         if g["AP_50"].notna().any():
             best = g.loc[g["AP_50"].idxmax()]
+            extra = ""
+            if "AP_50_segm" in g.columns and pd.notna(best.get("AP_50_segm")):
+                extra = f"  mask_AP@50={best['AP_50_segm']:.3f}"
             print(
-                f"  {task_name}: {best['model_label']}  AP@50={best['AP_50']:.3f}  "
-                f"AP@50:95={best['AP_50_95']:.3f}"
+                f"  {task_name}: {best['model_label']}  bbox_AP@50={best['AP_50']:.3f}  "
+                f"bbox_AP@50:95={best['AP_50_95']:.3f}{extra}"
             )
     return df_summary
 

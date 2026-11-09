@@ -101,27 +101,96 @@ def per_image_match_stats(gt_pairs, preds, iou_thr: float = 0.5) -> dict[str, An
     }
 
 
+def _empty_coco_stats() -> dict[str, float | None]:
+    return {n: None for n in COCO_STAT_NAMES}
+
+
+def segmentation_from_det(d: dict) -> list | dict | None:
+    """Return a COCO segmentation (polygon list or RLE dict) from a det, if any."""
+    seg = d.get("segmentation")
+    if isinstance(seg, dict) and seg.get("counts") is not None:
+        return seg
+    if isinstance(seg, list) and seg:
+        # Already COCO polygons [[x,y,...], ...] or a flat ring
+        if isinstance(seg[0], (int, float)):
+            return [seg] if len(seg) >= 6 else None
+        return seg
+    points = d.get("points")
+    if isinstance(points, list) and len(points) >= 3:
+        flat: list[float] = []
+        for pt in points:
+            if isinstance(pt, dict) and "x" in pt and "y" in pt:
+                flat.extend([float(pt["x"]), float(pt["y"])])
+            elif isinstance(pt, (list, tuple)) and len(pt) >= 2:
+                flat.extend([float(pt[0]), float(pt[1])])
+            else:
+                return None
+        return [flat] if len(flat) >= 6 else None
+    return None
+
+
+def gt_has_segmentation(
+    coco_gt: COCO,
+    sample_ids: list[int],
+    cat_ids: list[int],
+) -> bool:
+    """True if any GT ann in the sample has a usable segmentation."""
+    ann_ids = coco_gt.getAnnIds(imgIds=sample_ids, catIds=cat_ids)
+    for a in coco_gt.loadAnns(ann_ids):
+        seg = a.get("segmentation")
+        if not seg:
+            continue
+        if isinstance(seg, dict) and seg.get("counts") is not None:
+            return True
+        if isinstance(seg, list) and len(seg) > 0:
+            return True
+    return False
+
+
 def coco_eval_full(
     coco_gt: COCO,
     sample_ids: list[int],
     name_to_id: dict[str, int],
     dets: list[dict],
+    *,
+    iou_type: str = "bbox",
 ) -> dict[str, float | None]:
-    empty = {n: None for n in COCO_STAT_NAMES}
+    empty = _empty_coco_stats()
     if not dets:
         return empty
-    # Bbox eval only — drop mask/class extras retained for association analysis
-    coco_dets = [
-        {
-            "image_id": d["image_id"],
-            "category_id": d["category_id"],
-            "bbox": d["bbox"],
-            "score": d["score"],
-        }
-        for d in dets
-    ]
+
+    if iou_type == "bbox":
+        coco_dets = [
+            {
+                "image_id": d["image_id"],
+                "category_id": d["category_id"],
+                "bbox": d["bbox"],
+                "score": d["score"],
+            }
+            for d in dets
+        ]
+    elif iou_type == "segm":
+        coco_dets = []
+        for d in dets:
+            seg = segmentation_from_det(d)
+            if seg is None:
+                continue
+            item = {
+                "image_id": d["image_id"],
+                "category_id": d["category_id"],
+                "segmentation": seg,
+                "score": d["score"],
+            }
+            if d.get("bbox") is not None:
+                item["bbox"] = d["bbox"]
+            coco_dets.append(item)
+        if not coco_dets:
+            return empty
+    else:
+        raise ValueError(f"Unsupported iou_type: {iou_type}")
+
     coco_dt = coco_gt.loadRes(copy.deepcopy(coco_dets))
-    ev = COCOeval(coco_gt, coco_dt, "bbox")
+    ev = COCOeval(coco_gt, coco_dt, iou_type)
     ev.params.imgIds = sample_ids
     ev.params.catIds = list(name_to_id.values())
     ev.evaluate()
@@ -131,4 +200,32 @@ def coco_eval_full(
     for i, name in enumerate(COCO_STAT_NAMES):
         val = float(ev.stats[i])
         out[name] = None if np.isnan(val) else val
+    return out
+
+
+def coco_eval_bbox_and_segm(
+    coco_gt: COCO,
+    sample_ids: list[int],
+    name_to_id: dict[str, int],
+    dets: list[dict],
+    *,
+    run_segm: bool = False,
+) -> dict[str, float | None]:
+    """Bbox COCO stats, plus mask stats as ``*_segm`` when ``run_segm`` is True."""
+    out = coco_eval_full(coco_gt, sample_ids, name_to_id, dets, iou_type="bbox")
+    if not run_segm:
+        return out
+
+    cat_ids = list(name_to_id.values())
+    if not gt_has_segmentation(coco_gt, sample_ids, cat_ids):
+        print("  ⚠️ GT has no segmentations — skipping mask mAP (segm)")
+        for n in COCO_STAT_NAMES:
+            out[f"{n}_segm"] = None
+        return out
+
+    n_mask = sum(1 for d in dets if segmentation_from_det(d) is not None)
+    print(f"  Mask mAP (segm): {n_mask}/{len(dets)} preds have polygons/masks")
+    segm = coco_eval_full(coco_gt, sample_ids, name_to_id, dets, iou_type="segm")
+    for n, v in segm.items():
+        out[f"{n}_segm"] = v
     return out

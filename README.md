@@ -123,8 +123,10 @@ Each run creates `outputs/<timestamp>_<tasks>/`:
 
 ## Notes
 
-- Metrics are **bbox** COCO (`pycocotools`). Flower/pod instance-seg models also
-  keep polygons/masks in `{task}_predictions_with_masks.jsonl` for association analysis.
+- Metrics: **bbox** COCO for all tasks. Flowers/pods also get **mask mAP**
+  (`AP_*_segm` via `COCOeval` `segm`) when GT and preds have polygons/masks.
+  Full preds with masks are in `{task}_predictions_with_masks.jsonl`.
+  Plant-stand stays bbox-only (RF-DETR detection).
 - Astra uses Autolabel preview (`gpt-6-astra-boxes`) with an identity ontology
   from GT class names (includes `Plant-Bean` / `Plant_Bean` where configured).
 - Class name matching is normalized (`Plant_Bean` ≈ `Plant-Bean`).
