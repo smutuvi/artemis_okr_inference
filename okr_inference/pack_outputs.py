@@ -1,7 +1,10 @@
-"""Zip large run JSONLs for download (GitHub rejects files >100MB).
+"""Split run JSONLs for GitHub vs home zip download.
+
+GitHub rejects files >100MB. This tool:
+  - lists / optionally reports JSONLs that are safe to ``git add -f``
+  - zips only the oversized ones to ``~/`` for Jupyter download
 
 Uses Python's stdlib zipfile (no system ``zip`` binary required).
-Writes to ``~/`` by default so Jupyter ``FileLink`` / file browser can download.
 """
 
 from __future__ import annotations
@@ -10,8 +13,8 @@ import argparse
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
-# GitHub hard limit is 100MB; pack anything near that for off-git transfer.
-GITHUB_SAFE_MB = 90
+GITHUB_LIMIT_MB = 100
+GITHUB_LIMIT_BYTES = GITHUB_LIMIT_MB * 1024 * 1024
 
 
 def _iter_jsonl(run_dir: Path, *, include_checkpoints: bool, include_masks: bool) -> list[Path]:
@@ -25,6 +28,29 @@ def _iter_jsonl(run_dir: Path, *, include_checkpoints: bool, include_masks: bool
     return [p for p in files if p.is_file()]
 
 
+def _arcname(run_dir: Path, src: Path) -> str:
+    if src.parent.name == "checkpoints":
+        return f"{run_dir.name}__checkpoints__{src.name}"
+    return f"{run_dir.name}__{src.name}"
+
+
+def _write_zip(out_zip: Path, run_dir: Path, files: list[Path]) -> Path:
+    out_zip = Path(out_zip).expanduser().resolve()
+    out_zip.parent.mkdir(parents=True, exist_ok=True)
+    print(f"Packing {len(files)} oversized file(s) → {out_zip}")
+    with ZipFile(out_zip, "w", compression=ZIP_DEFLATED, allowZip64=True) as zf:
+        for src in files:
+            arcname = _arcname(run_dir, src)
+            mb = src.stat().st_size / (1024 * 1024)
+            print(f"  + {src.relative_to(run_dir)}  ({mb:.1f} MB) → {arcname}")
+            zf.write(src, arcname=arcname)
+    out_mb = out_zip.stat().st_size / (1024 * 1024)
+    print(f"Wrote {out_zip} ({out_mb:.1f} MB)")
+    print("Download via Jupyter file browser or:")
+    print(f'  from IPython.display import FileLink; FileLink("{out_zip}")')
+    return out_zip
+
+
 def pack_run_jsonl(
     run_dir: Path,
     *,
@@ -32,8 +58,9 @@ def pack_run_jsonl(
     include_checkpoints: bool = True,
     include_masks: bool = True,
     only_large: bool = False,
-) -> Path:
-    """Create a zip of mask/checkpoint JSONLs with unique archive names."""
+    github_split: bool = False,
+) -> Path | None:
+    """Zip JSONLs. With ``github_split``, only files >100MB go to the home zip."""
     run_dir = Path(run_dir).resolve()
     if not run_dir.is_dir():
         raise FileNotFoundError(run_dir)
@@ -43,59 +70,48 @@ def pack_run_jsonl(
         include_checkpoints=include_checkpoints,
         include_masks=include_masks,
     )
-    if files:
-        print("JSONL sizes:")
-        for p in files:
-            print(f"  {p.relative_to(run_dir)}  {p.stat().st_size / (1024*1024):.1f} MB")
-
-    if only_large:
-        lim = GITHUB_SAFE_MB * 1024 * 1024
-        large = [p for p in files if p.stat().st_size >= lim]
-        if not large and files:
-            print(
-                f"No files ≥ {GITHUB_SAFE_MB} MB; packing all {len(files)} JSONL(s) instead "
-                f"(omit --only-large to silence this fallback)."
-            )
-        else:
-            files = large
-
     if not files:
         raise FileNotFoundError(
-            f"No JSONL files to pack under {run_dir} "
-            f"(checkpoints={include_checkpoints}, masks={include_masks}, only_large={only_large})"
+            f"No JSONL files under {run_dir} "
+            f"(checkpoints={include_checkpoints}, masks={include_masks})"
         )
 
+    print("JSONL sizes:")
+    for p in files:
+        mb = p.stat().st_size / (1024 * 1024)
+        flag = "ZIP→home" if p.stat().st_size > GITHUB_LIMIT_BYTES else "git-ok"
+        print(f"  [{flag}] {p.relative_to(run_dir)}  {mb:.1f} MB")
+
+    if github_split or only_large:
+        large = [p for p in files if p.stat().st_size > GITHUB_LIMIT_BYTES]
+        small = [p for p in files if p.stat().st_size <= GITHUB_LIMIT_BYTES]
+
+        if small:
+            print(f"\nGitHub-safe JSONLs (≤{GITHUB_LIMIT_MB} MB) — you can force-add:")
+            for p in small:
+                print(f"  git add -f {p}")
+        else:
+            print(f"\nNo JSONLs ≤{GITHUB_LIMIT_MB} MB.")
+
+        if not large:
+            print(f"No files >{GITHUB_LIMIT_MB} MB — nothing to zip to home.")
+            return None
+
+        if out_zip is None:
+            out_zip = Path.home() / f"{run_dir.name}_jsonl_large.zip"
+        return _write_zip(Path(out_zip), run_dir, large)
+
+    # Default: zip everything requested
     if out_zip is None:
         out_zip = Path.home() / f"{run_dir.name}_jsonl.zip"
-    else:
-        out_zip = Path(out_zip).expanduser().resolve()
-    out_zip.parent.mkdir(parents=True, exist_ok=True)
-
-    print(f"Packing {len(files)} file(s) → {out_zip}")
-    with ZipFile(out_zip, "w", compression=ZIP_DEFLATED, allowZip64=True) as zf:
-        for src in files:
-            # Unique names so pods_predictions_with_masks.jsonl from different
-            # runs/tasks never collide inside the archive.
-            if src.parent.name == "checkpoints":
-                arcname = f"{run_dir.name}__checkpoints__{src.name}"
-            else:
-                arcname = f"{run_dir.name}__{src.name}"
-            mb = src.stat().st_size / (1024 * 1024)
-            print(f"  + {src.relative_to(run_dir)}  ({mb:.1f} MB) → {arcname}")
-            zf.write(src, arcname=arcname)
-
-    out_mb = out_zip.stat().st_size / (1024 * 1024)
-    print(f"Wrote {out_zip} ({out_mb:.1f} MB)")
-    print("Download via Jupyter file browser or:")
-    print(f'  from IPython.display import FileLink; FileLink("{out_zip}")')
-    return out_zip
+    return _write_zip(Path(out_zip), run_dir, files)
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         description=(
-            "Zip checkpoint / mask JSONLs from a run folder for off-GitHub download "
-            "(avoids the 100MB GitHub file limit)."
+            "Zip run JSONLs for download. Use --github-split to zip only files "
+            f">{GITHUB_LIMIT_MB} MB to ~/ and list smaller ones for git add."
         )
     )
     p.add_argument(
@@ -108,7 +124,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--out-zip",
         type=Path,
         default=None,
-        help="Output zip path (default: ~/<run_dir_name>_jsonl.zip)",
+        help="Output zip path (default: ~/<run>_jsonl.zip or _jsonl_large.zip)",
     )
     p.add_argument(
         "--no-checkpoints",
@@ -123,7 +139,15 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--only-large",
         action="store_true",
-        help=f"Only include files ≥ {GITHUB_SAFE_MB} MB",
+        help=f"Alias for --github-split (zip only files >{GITHUB_LIMIT_MB} MB)",
+    )
+    p.add_argument(
+        "--github-split",
+        action="store_true",
+        help=(
+            f"Zip only JSONLs >{GITHUB_LIMIT_MB} MB to home; print git add lines "
+            f"for files ≤{GITHUB_LIMIT_MB} MB"
+        ),
     )
     return p
 
@@ -136,6 +160,7 @@ def main(argv: list[str] | None = None) -> int:
         include_checkpoints=not args.no_checkpoints,
         include_masks=not args.no_masks,
         only_large=args.only_large,
+        github_split=args.github_split or args.only_large,
     )
     return 0
 
