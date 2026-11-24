@@ -152,6 +152,7 @@ python -m okr_inference --tasks flowers --sample 5 --visualize
 | `--resume RUN_DIR` | off | Continue an interrupted run (skip checkpointed images) |
 | `--seed` | `42` (YAML) | Sampling seed |
 | `--custom-conf` | `0.01` | Confidence floor for custom serverless models |
+| `--max-detections N` | Roboflow default (300) | Cap on preds/image; use 2000+ for dense panicle/pearl |
 | `--match-iou` | `0.50` | IoU for match-map / micro precision-recall |
 | `--force-redownload` | off | Wipe cached GT folders and download again |
 | `--output-dir` | `outputs/` | CSV + viz root |

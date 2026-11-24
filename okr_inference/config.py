@@ -75,6 +75,8 @@ class RunConfig:
     tasks: list[TaskSpec]
     match_iou: float = 0.50
     custom_conf: float = 0.01
+    # None → Roboflow serverless default (300). Dense traits often need 2000+.
+    max_detections: int | None = None
     random_seed: int = 42
     download_format: str = "coco"
     force_redownload: bool = False
@@ -374,6 +376,7 @@ def build_run_config(
     seed: int | None = None,
     match_iou: float | None = None,
     custom_conf: float | None = None,
+    max_detections: int | None = None,
     force_redownload: bool | None = None,
     resume_dir: Path | None = None,
     run_name: str | None = None,
@@ -439,6 +442,15 @@ def build_run_config(
         match_iou=float(match_iou if match_iou is not None else defaults.get("match_iou", 0.50)),
         custom_conf=float(
             custom_conf if custom_conf is not None else defaults.get("custom_conf", 0.01)
+        ),
+        max_detections=(
+            int(max_detections)
+            if max_detections is not None
+            else (
+                int(defaults["max_detections"])
+                if defaults.get("max_detections") is not None
+                else None
+            )
         ),
         random_seed=int(seed if seed is not None else defaults.get("random_seed", 42)),
         download_format=str(defaults.get("download_format", "coco")),

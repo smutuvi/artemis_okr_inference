@@ -71,6 +71,7 @@ def _run_model_infer(
             model_id=model.model_id,
             image_path=image_path,
             confidence=cfg.custom_conf,
+            max_detections=cfg.max_detections,
         )
     raise ValueError(f"Unknown model kind: {model.kind}")
 
