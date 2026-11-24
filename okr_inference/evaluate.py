@@ -124,13 +124,17 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
 
     try:
         ann, img_dir, split = find_coco_split(
-            ds_location, preferred=cfg.split, require_preferred=True
+            ds_location, preferred=cfg.split, require_preferred=False
         )
     except FileNotFoundError as e:
         print(f"❌ {e}")
         return None
     print("GT split:", split)
-    if split != "test":
+    if split != cfg.split:
+        print(
+            f"  ⚠️ Requested split '{cfg.split}' missing; using available '{split}'."
+        )
+    elif split != "test":
         print(f"  ⚠️ Evaluating on '{split}' (not test). Prefer --split test for final metrics.")
 
     coco = COCO(ann)
@@ -525,6 +529,25 @@ def run_evaluation(cfg: RunConfig) -> Path:
 
     results = []
     for task in cfg.tasks:
+        metrics_csv = run_dir / f"{task.name}_model_metrics.csv"
+        if metrics_csv.is_file():
+            print(
+                f"\n⏭️  Skipping {task.name}: already have {metrics_csv.name} "
+                f"(delete it to re-run this task)."
+            )
+            try:
+                results.append(
+                    {
+                        "task": task.name,
+                        "sample_ids": [],
+                        "models": {},
+                        "df_img": None,
+                        "df_models": pd.read_csv(metrics_csv),
+                    }
+                )
+            except Exception as e:
+                print(f"  ⚠️ could not reload {metrics_csv}: {e}")
+            continue
         results.append(run_task(cfg, task, run_dir))
     results = [r for r in results if r]
     write_summary(results, run_dir)
