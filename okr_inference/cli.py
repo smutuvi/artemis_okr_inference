@@ -118,6 +118,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--match-iou", type=float, default=None, help="IoU for match-map / micro P-R.")
     p.add_argument("--custom-conf", type=float, default=None, help="Confidence floor for custom models.")
     p.add_argument(
+        "--max-detections",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Max detections per image for custom models (Roboflow default 300). "
+            "Use 2000–3000 for dense sorghum panicle/pearl."
+        ),
+    )
+    p.add_argument(
         "--force-redownload",
         action="store_true",
         help="Delete matching local GT folders before downloading.",
@@ -204,6 +214,7 @@ def main(argv: list[str] | None = None) -> int:
         seed=args.seed,
         match_iou=args.match_iou,
         custom_conf=args.custom_conf,
+        max_detections=args.max_detections,
         force_redownload=args.force_redownload,
         resume_dir=args.resume,
         run_name=args.run_name,

@@ -174,6 +174,7 @@ def infer_custom(
     model_id: str,
     image_path: str,
     confidence: float = 0.01,
+    max_detections: int | None = None,
     timeout: int = 180,
     retries: int = 5,
 ) -> list[dict]:
@@ -183,6 +184,9 @@ def infer_custom(
     api_key_transport="header": base64 image body + Bearer auth. Works for
     both "project/<version>" and "workspace/model-name" IDs, without needing
     the inference-sdk package.
+
+    ``max_detections`` maps to the serverless query param (Roboflow default 300).
+    Dense traits (e.g. sorghum panicle) often need 2000–3000.
     """
     url = f"https://serverless.roboflow.com/{model_id}"
     label = f"Custom[{model_id}]"
@@ -190,7 +194,12 @@ def infer_custom(
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/x-www-form-urlencoded",
     }
-    params = {"confidence": confidence, "disable_active_learning": "true"}
+    params: dict[str, str | int | float] = {
+        "confidence": confidence,
+        "disable_active_learning": "true",
+    }
+    if max_detections is not None:
+        params["max_detections"] = int(max_detections)
 
     def _once():
         r = requests.post(
