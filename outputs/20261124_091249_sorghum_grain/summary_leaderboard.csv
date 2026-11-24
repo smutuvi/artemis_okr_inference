@@ -1,0 +1,2 @@
+task,model_label,provider,AP_50,AP_50_95,AP_75,AR_maxDets100,AP_50_segm,AP_50_95_segm,AP_75_segm,AR_maxDets100_segm,expected_objects,predicted_objects,matched_both,micro_precision_iou50,micro_recall_iou50
+sorghum_grain,DINOv3 ConvNeXt-Small 3-Ch Dense Grain U-Net (Tiled),Databricks Serverless GPU,0.05982726378511397,0.02601356234728443,0.017222726349316653,0.04072501620681773,0.05788364314073092,0.025744337915670563,0.01682338998715408,0.03930218876352286,266863,291472,164108,0.5630317834989296,0.6149522414122602
