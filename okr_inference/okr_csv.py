@@ -127,15 +127,19 @@ def load_okr_csv(
 
             model_url = (row.get("model_path") or "").strip()
             data_url = (row.get("data_path") or "").strip()
-            classes = parse_classes(row.get("classes_covered"))
+            # classes_covered = model/ontology names; class_name = GT dataset labels
+            model_classes = parse_classes(row.get("classes_covered"))
+            gt_classes = parse_classes(row.get("class_name")) or list(model_classes)
 
             if require_paths and (not model_url or not data_url):
                 print(
                     f"  skip row {i} {crop}/{trait}: missing model_path and/or data_path"
                 )
                 continue
-            if not classes:
-                print(f"  skip row {i} {crop}/{trait}: empty classes_covered")
+            if not gt_classes:
+                print(
+                    f"  skip row {i} {crop}/{trait}: empty class_name/classes_covered"
+                )
                 continue
 
             try:
@@ -144,6 +148,18 @@ def load_okr_csv(
             except ValueError as e:
                 print(f"  skip row {i} {crop}/{trait}: {e}")
                 continue
+
+            aliases: dict[str, str] = {}
+            if model_classes and len(model_classes) == len(gt_classes):
+                for src, dst in zip(model_classes, gt_classes):
+                    if src != dst:
+                        aliases[src] = dst
+            elif model_classes and gt_classes and model_classes != gt_classes:
+                print(
+                    f"  ⚠️ row {i} {crop}/{trait}: classes_covered ({model_classes}) "
+                    f"vs class_name ({gt_classes}) length mismatch; "
+                    "scoring GT with class_name only (no 1:1 alias map)"
+                )
 
             name = slugify_task(crop, trait)
             label = (row.get("active_model") or "").strip() or f"Custom {name}"
@@ -155,7 +171,7 @@ def load_okr_csv(
                     name=name,
                     gt_project=gt_project,
                     gt_version=gt_version,
-                    classes=classes,
+                    classes=gt_classes,
                     models=[
                         ModelSpec(
                             key="custom",
@@ -166,11 +182,13 @@ def load_okr_csv(
                         )
                     ],
                     run_segm=run_segm,
+                    class_aliases=aliases,
                 )
             )
+            alias_bit = f"  aliases={aliases}" if aliases else ""
             print(
                 f"  OKR task {name}: GT={gt_project}/{gt_version}  "
-                f"model={model_id}  classes={classes}  segm={run_segm}"
+                f"model={model_id}  gt_classes={gt_classes}  segm={run_segm}{alias_bit}"
             )
 
     if not tasks:
