@@ -1,0 +1,2 @@
+task,model_label,provider,AP_50,AP_50_95,AP_75,AR_maxDets100,AP_50_segm,AP_50_95_segm,AP_75_segm,AR_maxDets100_segm,expected_objects,predicted_objects,matched_both,micro_precision_iou50,micro_recall_iou50
+sorghum_panicle_and_pearl,Current best (cgiar-workspace/sorghum-panicle-grain-mature-gs-5-yolo11x-t6),Roboflow Serverless,0.053790587214367455,0.03652070882961875,0.04103265872804734,0.03646065584213623,,,,,269518,362935,195556,0.5388182456913773,0.7255767703826832
