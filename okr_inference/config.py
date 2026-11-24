@@ -63,6 +63,8 @@ class TaskSpec:
     gt_version: int
     classes: list[str]
     models: list[ModelSpec] = field(default_factory=list)
+    # Run COCO mask mAP + write *_predictions_with_masks.jsonl
+    run_segm: bool = False
 
 
 @dataclass
@@ -204,6 +206,7 @@ def inject_autolabel_model(tasks: list[TaskSpec], model_type: str) -> list[TaskS
             gt_version=t.gt_version,
             classes=list(t.classes),
             models=[model],
+            run_segm=t.run_segm,
         )
         for t in tasks
     ]
@@ -228,6 +231,7 @@ def filter_task_models(tasks: list[TaskSpec], model_keys: list[str] | None) -> l
                 gt_version=t.gt_version,
                 classes=list(t.classes),
                 models=models,
+                run_segm=t.run_segm,
             )
         )
     return out
@@ -281,6 +285,7 @@ def apply_task_class_overrides(
                 gt_version=t.gt_version,
                 classes=list(classes) if classes is not None else list(t.classes),
                 models=list(t.models),
+                run_segm=t.run_segm,
             )
         )
     return out
@@ -302,6 +307,8 @@ def build_task_specs(data: dict[str, Any], selected: list[str]) -> list[TaskSpec
             )
             for m in t.get("models", [])
         ]
+        # Default: flowers/pods keep masks; YAML may set run_segm explicitly
+        run_segm = bool(t.get("run_segm", name in ("flowers", "pods")))
         out.append(
             TaskSpec(
                 name=name,
@@ -309,6 +316,7 @@ def build_task_specs(data: dict[str, Any], selected: list[str]) -> list[TaskSpec
                 gt_version=int(t["gt_version"]),
                 classes=list(t.get("classes") or []),
                 models=models,
+                run_segm=run_segm,
             )
         )
     return out
@@ -366,12 +374,26 @@ def build_run_config(
     run_name: str | None = None,
     split: str | None = None,
     task_classes: list[str] | None = None,
+    okr_csv: Path | None = None,
+    okr_ready_only: bool = True,
 ) -> RunConfig:
     data = load_tasks_yaml(tasks_yaml)
     defaults = data.get("defaults") or {}
-    all_names = list((data.get("tasks") or {}).keys())
-    selected = parse_task_selection(tasks, all_names)
-    task_specs = build_task_specs(data, selected)
+
+    if okr_csv is not None:
+        from okr_inference.okr_csv import load_okr_csv
+
+        print(f"Loading OKR tasks from CSV: {okr_csv}")
+        task_specs = load_okr_csv(okr_csv, ready_only=okr_ready_only)
+        all_names = [t.name for t in task_specs]
+        if tasks and tasks.strip().lower() != "all":
+            selected = parse_task_selection(tasks, all_names)
+            task_specs = [t for t in task_specs if t.name in selected]
+    else:
+        all_names = list((data.get("tasks") or {}).keys())
+        selected = parse_task_selection(tasks, all_names)
+        task_specs = build_task_specs(data, selected)
+
     available_model_keys = sorted(
         {m.key for t in task_specs for m in t.models}
     )

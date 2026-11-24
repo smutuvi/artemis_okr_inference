@@ -298,8 +298,8 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
     df_img.to_csv(img_csv, index=False)
     print(f"\n📄 Wrote {img_csv}")
 
-    # Persist full preds (incl. instance masks) for flower/pod association analysis
-    if task.name in ("flowers", "pods"):
+    # Persist full preds (incl. instance masks) for association analysis
+    if task.run_segm:
         pred_path = run_dir / f"{task.name}_predictions_with_masks.jsonl"
         with open(pred_path, "w") as f:
             for k, dets in model_dets.items():
@@ -343,7 +343,6 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
     }
 
     viz_dir = run_dir / "visualizations" / task.name
-    run_segm = task.name in ("flowers", "pods")
     for m in task.models:
         key = m.key
         coco_stats = coco_eval_bbox_and_segm(
@@ -351,7 +350,7 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
             sample_ids,
             name_to_id,
             model_dets[key],
-            run_segm=run_segm,
+            run_segm=task.run_segm,
         )
         pred_total = len(model_dets[key])
         map50 = coco_stats.get("AP_50")

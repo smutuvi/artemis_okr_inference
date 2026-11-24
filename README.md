@@ -46,14 +46,27 @@ python run.py --list-tasks
 
 ## Usage
 
-### All traits, custom only, 20 images each (default)
+### OKR CSV (cowpea / sorghum model_path + data_path)
 
 ```bash
-python run.py --sample 20
-# same as: --tasks plant_stand,flowers,pods --model custom --sample 20
+# list ready rows parsed from config/OKR_4.3.csv
+python run.py --okr-csv --list-tasks
+
+# run all ready OKR traits (custom only, conf 0.01 from YAML)
+python run.py --okr-csv --all --visualize 5 --split valid \
+  --run-name 20261124_okr_4_3_ready
+
+# one trait only
+python run.py --okr-csv --tasks cowpea_pods --all --visualize 5 --split valid
 ```
 
-### One task
+### Bushbean tasks.yaml, custom only, 20 images each
+
+```bash
+python run.py --tasks plant_stand,flowers,pods --sample 20
+```
+
+### One bushbean task
 
 ```bash
 python run.py --tasks pods --sample 20 --visualize
@@ -92,7 +105,9 @@ python -m okr_inference --tasks flowers --sample 5 --visualize
 
 | Flag | Default | Meaning |
 |------|---------|---------|
-| `--tasks` | `plant_stand,flowers,pods` | Comma list or `all` |
+| `--tasks` | `all` | Comma list or `all` (YAML names, or OKR `crop_trait` slugs) |
+| `--okr-csv [PATH]` | off | Load tasks from OKR CSV (`model_path` + `data_path`); default file `config/OKR_4.3.csv` |
+| `--okr-include-non-ready` | off | Include CSV rows whose `dataset_status` ≠ `ready` |
 | `--model` / `--models` | `custom` | `custom` (default), `astra`, lists, or raw Autolabel type |
 | `--sample N` | `20` | Seeded sample size per task |
 | `--all` | off | Use every image (overrides `--sample`) |

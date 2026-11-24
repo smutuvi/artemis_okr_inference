@@ -7,10 +7,13 @@ from pathlib import Path
 
 from okr_inference.config import (
     DEFAULT_TASKS_YAML,
+    PACKAGE_ROOT,
     available_task_names,
     build_run_config,
 )
 from okr_inference.evaluate import run_evaluation
+
+DEFAULT_OKR_CSV = PACKAGE_ROOT / "config" / "OKR_4.3.csv"
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -18,19 +21,35 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="okr_inference",
         description=(
-            "Evaluate GPT-6 Astra Autolabel vs custom Roboflow models on "
-            "Artemis OKR GT datasets. Select tasks, sample or all images, "
-            "and optionally save playground-style visualizations."
+            "Evaluate custom Roboflow models on Artemis OKR GT datasets "
+            "(tasks.yaml or OKR CSV with model_path + data_path). "
+            "Select tasks, sample or all images, optional visualizations."
         ),
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     p.add_argument(
         "--tasks",
-        default="plant_stand,flowers,pods",
+        default="all",
         help=(
-            f"Comma-separated task names, or 'all'. Available: {', '.join(names)}. "
-            "Example: flowers  |  plant_stand,flowers,pods  |  all"
+            f"Comma-separated task names, or 'all'. YAML tasks: {', '.join(names)}. "
+            "With --okr-csv, names are crop_trait slugs (e.g. cowpea_pods)."
         ),
+    )
+    p.add_argument(
+        "--okr-csv",
+        nargs="?",
+        const=str(DEFAULT_OKR_CSV),
+        default=None,
+        metavar="PATH",
+        help=(
+            "Load tasks from an OKR CSV (model_path + data_path). "
+            f"Omit PATH to use {DEFAULT_OKR_CSV.name}."
+        ),
+    )
+    p.add_argument(
+        "--okr-include-non-ready",
+        action="store_true",
+        help="With --okr-csv, also include rows whose dataset_status is not 'ready'.",
     )
     p.add_argument(
         "--models",
@@ -142,8 +161,19 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.list_tasks:
-        for name in available_task_names(args.tasks_yaml):
-            print(name)
+        if args.okr_csv:
+            from okr_inference.okr_csv import load_okr_csv
+
+            for t in load_okr_csv(
+                args.okr_csv, ready_only=not args.okr_include_non_ready
+            ):
+                print(
+                    f"{t.name}\tGT={t.gt_project}/{t.gt_version}\t"
+                    f"model={t.models[0].model_id}\tclasses={t.classes}"
+                )
+        else:
+            for name in available_task_names(args.tasks_yaml):
+                print(name)
         return 0
 
     # --visualize [N]  (default N=1); --visualize-n kept as alias
@@ -170,6 +200,8 @@ def main(argv: list[str] | None = None) -> int:
         run_name=args.run_name,
         split=args.split,
         task_classes=args.task_classes,
+        okr_csv=Path(args.okr_csv) if args.okr_csv else None,
+        okr_ready_only=not args.okr_include_non_ready,
     )
     run_evaluation(cfg)
     return 0
