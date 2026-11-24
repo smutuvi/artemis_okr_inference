@@ -43,9 +43,21 @@ def pack_run_jsonl(
         include_checkpoints=include_checkpoints,
         include_masks=include_masks,
     )
+    if files:
+        print("JSONL sizes:")
+        for p in files:
+            print(f"  {p.relative_to(run_dir)}  {p.stat().st_size / (1024*1024):.1f} MB")
+
     if only_large:
         lim = GITHUB_SAFE_MB * 1024 * 1024
-        files = [p for p in files if p.stat().st_size >= lim]
+        large = [p for p in files if p.stat().st_size >= lim]
+        if not large and files:
+            print(
+                f"No files ≥ {GITHUB_SAFE_MB} MB; packing all {len(files)} JSONL(s) instead "
+                f"(omit --only-large to silence this fallback)."
+            )
+        else:
+            files = large
 
     if not files:
         raise FileNotFoundError(
