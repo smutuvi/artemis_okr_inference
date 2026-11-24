@@ -46,6 +46,17 @@ python run.py --list-tasks
 
 ## Usage
 
+### Re-score an existing run at other confidence floors (no re-infer)
+
+```bash
+python -m okr_inference.rescore \
+  --run-dir outputs/20261124_okr_4_3_ready \
+  --task cowpea_plant_stand \
+  --okr-csv \
+  --split train \
+  --conf-sweep 0.01,0.10,0.25,0.40,0.50
+```
+
 ### OKR CSV (cowpea / sorghum model_path + data_path)
 
 ```bash
