@@ -8,6 +8,7 @@ from pathlib import Path
 from urllib.parse import urlparse, unquote
 
 from okr_inference.config import ModelSpec, TaskSpec
+from okr_inference.metrics import norm_name
 
 # Traits that should keep instance masks and run COCO segm mAP.
 _SEGM_TRAIT_HINTS = (
@@ -154,11 +155,16 @@ def load_okr_csv(
                 for src, dst in zip(model_classes, gt_classes):
                     if src != dst:
                         aliases[src] = dst
-            elif model_classes and gt_classes and model_classes != gt_classes:
+            elif model_classes and gt_classes:
+                # Unequal lists (e.g. extra GT-only class): map by normalized name
+                gt_by_norm = {norm_name(g): g for g in gt_classes}
+                for src in model_classes:
+                    dst = gt_by_norm.get(norm_name(src))
+                    if dst is not None and src != dst:
+                        aliases[src] = dst
                 print(
-                    f"  ⚠️ row {i} {crop}/{trait}: classes_covered ({model_classes}) "
-                    f"vs class_name ({gt_classes}) length mismatch; "
-                    "scoring GT with class_name only (no 1:1 alias map)"
+                    f"  note row {i} {crop}/{trait}: classes_covered={model_classes} "
+                    f"class_name={gt_classes} (norm aliases={aliases or 'none'})"
                 )
 
             name = slugify_task(crop, trait)
