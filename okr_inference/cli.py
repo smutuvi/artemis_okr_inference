@@ -153,6 +153,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Print available task names from the YAML and exit.",
     )
+    p.add_argument(
+        "--pack-jsonl",
+        action="store_true",
+        help=(
+            "After the run, zip checkpoints + *_predictions_with_masks.jsonl "
+            "to ~/ <run>_jsonl.zip for Jupyter download (GitHub-safe push still "
+            "excludes these files)."
+        ),
+    )
     return p
 
 
@@ -203,7 +212,14 @@ def main(argv: list[str] | None = None) -> int:
         okr_csv=Path(args.okr_csv) if args.okr_csv else None,
         okr_ready_only=not args.okr_include_non_ready,
     )
-    run_evaluation(cfg)
+    run_dir = run_evaluation(cfg)
+    if args.pack_jsonl:
+        from okr_inference.pack_outputs import pack_run_jsonl
+
+        try:
+            pack_run_jsonl(run_dir)
+        except FileNotFoundError as e:
+            print(f"⚠️ --pack-jsonl: {e}")
     return 0
 
 

@@ -46,6 +46,32 @@ python run.py --list-tasks
 
 ## Usage
 
+### Pack large JSONLs for Jupyter download (not for GitHub)
+
+Mask/checkpoint JSONLs often exceed GitHub’s 100 MB limit. Zip them to your
+home directory (stdlib `zipfile`, no system `zip` needed), then download via
+Jupyter:
+
+```bash
+# after a run
+python -m okr_inference.pack_outputs --run-dir outputs/20261124_okr_4_3
+# → ~/20261124_okr_4_3_jsonl.zip
+
+# or only mask preds (no checkpoints)
+python -m okr_inference.pack_outputs --run-dir outputs/20261124_okr_4_3 --no-checkpoints
+
+# or enable at the end of eval
+python run.py --okr-csv --all --pack-jsonl --run-name 20261124_okr_4_3
+```
+
+```python
+from IPython.display import FileLink
+FileLink("/home/smutuvi/20261124_okr_4_3_jsonl.zip")
+```
+
+When pushing results to GitHub, still force-add only CSVs + `visualizations/`
+(skip `checkpoints/` and `*_predictions_with_masks.jsonl`).
+
 ### Re-score an existing run at other confidence floors (no re-infer)
 
 ```bash
