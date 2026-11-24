@@ -22,6 +22,7 @@ dependencies = [
 
 [project.scripts]
 okr-inference = "okr_inference.cli:main"
+okr-pack-outputs = "okr_inference.pack_outputs:main"
 
 [tool.setuptools.packages.find]
 include = ["okr_inference*"]
