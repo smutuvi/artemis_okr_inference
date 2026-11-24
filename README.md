@@ -53,12 +53,12 @@ home directory (stdlib `zipfile`, no system `zip` needed), then download via
 Jupyter:
 
 ```bash
-# after a run
-python -m okr_inference.pack_outputs --run-dir outputs/20261124_okr_4_3
-# → ~/20261124_okr_4_3_jsonl.zip
+# after a run: zip only files >100MB to ~/ ; print git-add lines for smaller JSONLs
+python -m okr_inference.pack_outputs --run-dir outputs/20261124_okr_4_3 --github-split
+# → ~/20261124_okr_4_3_jsonl_large.zip (if any oversized files)
 
-# or only mask preds (no checkpoints)
-python -m okr_inference.pack_outputs --run-dir outputs/20261124_okr_4_3 --no-checkpoints
+# zip everything (masks + checkpoints)
+python -m okr_inference.pack_outputs --run-dir outputs/20261124_okr_4_3
 
 # or enable at the end of eval
 python run.py --okr-csv --all --pack-jsonl --run-name 20261124_okr_4_3
