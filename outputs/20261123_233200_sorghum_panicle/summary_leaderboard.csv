@@ -1,0 +1,2 @@
+task,model_label,provider,AP_50,AP_50_95,AP_75,AR_maxDets100,AP_50_segm,AP_50_95_segm,AP_75_segm,AR_maxDets100_segm,expected_objects,predicted_objects,matched_both,micro_precision_iou50,micro_recall_iou50
+sorghum_panicle,DINOv3 ConvNeXt-Small FPN Mask R-CNN (4-View TTA),Databricks Serverless GPU,0.49450081737958806,0.2793022827231427,0.2881970047409849,0.355743879472693,0.4860006200807264,0.27884613747172915,0.3057683253493651,0.3428248587570622,2655,2328,1496,0.6426116838487973,0.5634651600753295
