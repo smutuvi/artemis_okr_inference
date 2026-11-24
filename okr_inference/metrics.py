@@ -34,6 +34,27 @@ def resolve_cats(coco: COCO, wanted: list[str]) -> dict[str, int]:
     return out
 
 
+def apply_class_aliases(
+    preds: list[dict], aliases: dict[str, str] | None
+) -> list[dict]:
+    """Rename pred classes using model→GT aliases (exact + normalized keys)."""
+    if not aliases:
+        return preds
+    by_norm = {norm_name(k): v for k, v in aliases.items()}
+    out = []
+    for p in preds:
+        q = dict(p)
+        cls = str(q.get("class", ""))
+        if cls in aliases:
+            q["class"] = aliases[cls]
+        else:
+            mapped = by_norm.get(norm_name(cls))
+            if mapped is not None:
+                q["class"] = mapped
+        out.append(q)
+    return out
+
+
 def map_pred_classes(preds: list[dict], name_to_id: dict[str, int]) -> list[dict]:
     by_norm = {norm_name(n): n for n in name_to_id}
     out = []

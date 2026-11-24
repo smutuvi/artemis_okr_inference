@@ -65,6 +65,8 @@ class TaskSpec:
     models: list[ModelSpec] = field(default_factory=list)
     # Run COCO mask mAP + write *_predictions_with_masks.jsonl
     run_segm: bool = False
+    # Optional model-output class → GT class (from OKR classes_covered → class_name)
+    class_aliases: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -207,6 +209,7 @@ def inject_autolabel_model(tasks: list[TaskSpec], model_type: str) -> list[TaskS
             classes=list(t.classes),
             models=[model],
             run_segm=t.run_segm,
+            class_aliases=dict(t.class_aliases),
         )
         for t in tasks
     ]
@@ -232,6 +235,7 @@ def filter_task_models(tasks: list[TaskSpec], model_keys: list[str] | None) -> l
                 classes=list(t.classes),
                 models=models,
                 run_segm=t.run_segm,
+                class_aliases=dict(t.class_aliases),
             )
         )
     return out
@@ -286,6 +290,7 @@ def apply_task_class_overrides(
                 classes=list(classes) if classes is not None else list(t.classes),
                 models=list(t.models),
                 run_segm=t.run_segm,
+                class_aliases=dict(t.class_aliases),
             )
         )
     return out

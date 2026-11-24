@@ -21,7 +21,9 @@ from okr_inference.config import (
 )
 from okr_inference.evaluate import load_checkpoint, _ckpt_path
 from okr_inference.metrics import (
+    apply_class_aliases,
     coco_eval_bbox_and_segm,
+    map_pred_classes,
     norm_name,
     per_image_match_stats,
     resolve_cats,
@@ -105,23 +107,21 @@ def rescore_task(
                     if cls is None:
                         continue
                     raw_pred_classes.add(str(cls))
-                    # keep only classes in GT vocabulary (same as map_pred_classes exact/fuzzy)
-                    by_norm = {norm_name(n): n for n in name_to_id}
-                    exact = by_norm.get(norm_name(cls))
-                    if exact is None:
-                        for n in name_to_id:
-                            if norm_name(n) in norm_name(cls) or norm_name(cls) in norm_name(n):
-                                exact = n
-                                break
-                    if exact is None:
+                    mapped = apply_class_aliases(
+                        [{"class": cls, "bbox": d["bbox"], "score": score}],
+                        task.class_aliases,
+                    )
+                    mapped = map_pred_classes(mapped, name_to_id)
+                    if not mapped:
                         continue
+                    p = mapped[0]
                     kept.append(
                         {
                             "bbox": d["bbox"],
                             "score": score,
-                            "class": exact,
+                            "class": p["class"],
                             "image_id": img_id,
-                            "category_id": name_to_id[exact],
+                            "category_id": name_to_id[p["class"]],
                             **{
                                 k: d[k]
                                 for k in ("points", "segmentation", "mask")

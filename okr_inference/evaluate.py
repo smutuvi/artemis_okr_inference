@@ -17,6 +17,7 @@ from okr_inference.coco_io import download_gt, find_coco_split
 from okr_inference.config import ModelSpec, RunConfig, TaskSpec
 from okr_inference.infer import infer_astra, infer_custom
 from okr_inference.metrics import (
+    apply_class_aliases,
     coco_eval_bbox_and_segm,
     map_pred_classes,
     norm_name,
@@ -252,6 +253,7 @@ def run_task(cfg: RunConfig, task: TaskSpec, run_dir: Path) -> dict | None:
             except Exception as e:
                 print(f"    ❌ {k} infer error (skipping image preds): {e}")
                 preds = []
+            preds = apply_class_aliases(preds, task.class_aliases)
             preds = map_pred_classes(preds, name_to_id)
             print(f"    {k}: {len(preds)} preds")
             viz["preds"][k] = preds
